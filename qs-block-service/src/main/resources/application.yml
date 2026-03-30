@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: qs-block-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+  datasource:
+    url: jdbc:mysql://localhost:3306/yx_blockchain_proof
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+server:
+  port: 8085

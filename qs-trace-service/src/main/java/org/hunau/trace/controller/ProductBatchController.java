@@ -1,0 +1,25 @@
+package org.hunau.trace.controller;
+
+import jakarta.annotation.Resource;
+import org.hunau.common.R;
+import org.hunau.trace.entity.ProductBatch;
+import org.hunau.trace.service.ProductBatchService;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/trace/batch")
+public class ProductBatchController {
+
+    @Resource
+    private ProductBatchService productBatchService;
+
+    @PostMapping("/create")
+    public R<?> create(@RequestBody ProductBatch batch) {
+        return productBatchService.createBatch(batch);
+    }
+
+    @GetMapping("/list")
+    public R<?> list(@RequestParam(required = false) String companyId) {
+        return productBatchService.listBatches(companyId);
+    }
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="qs-gateway-service" />
+        <module name="qs-trace-service" />
+        <module name="qs-common" />
+        <module name="qs-scan-service" />
+        <module name="qs-block-service" />
+        <module name="qs-alert-service" />
+        <module name="qs-auth-service" />
+      </profile>
+    </annotationProcessing>
+  </component>
+</project>

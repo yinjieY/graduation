@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: qs-scan-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+  datasource:
+    url: jdbc:mysql://localhost:3306/yx_scan_anomaly
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+server:
+  port: 8082
+
+app:
+  integration:
+    alert-evaluate-url: http://localhost:8083/alert/evaluate
