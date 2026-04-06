@@ -4,6 +4,7 @@ import jakarta.annotation.Resource;
 import org.hunau.common.R;
 import org.hunau.trace.entity.ProductBatch;
 import org.hunau.trace.service.ProductBatchService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,6 +15,7 @@ public class ProductBatchController {
     private ProductBatchService productBatchService;
 
     @PostMapping("/create")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
     public R<?> create(@RequestBody ProductBatch batch) {
         return productBatchService.createBatch(batch);
     }

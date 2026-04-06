@@ -24,6 +24,7 @@ DROP TABLE IF EXISTS `auth_user`;
 CREATE TABLE `auth_user` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'PK',
   `username` VARCHAR(64) NOT NULL COMMENT 'Login username',
+  `phone` VARCHAR(20) NOT NULL COMMENT 'Login mobile phone',
   `password_hash` VARCHAR(255) NOT NULL COMMENT 'BCrypt encoded password',
   `role` VARCHAR(32) NOT NULL COMMENT 'ADMIN/COMPANY/CONSUMER/SERVICE',
   `company_id` VARCHAR(32) DEFAULT NULL COMMENT 'Bound company for COMPANY role',
@@ -33,8 +34,10 @@ CREATE TABLE `auth_user` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_auth_user_username` (`username`),
+  UNIQUE KEY `uk_auth_user_phone` (`phone`),
   KEY `idx_auth_user_role` (`role`),
   KEY `idx_auth_user_company_id` (`company_id`),
+  KEY `idx_auth_user_phone` (`phone`),
   KEY `idx_auth_user_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Authentication users';
 
@@ -46,6 +49,8 @@ CREATE TABLE `company_auth` (
   `company_id` VARCHAR(32) NOT NULL COMMENT 'Business company id',
   `company_name` VARCHAR(128) DEFAULT NULL,
   `review_status` TINYINT NOT NULL DEFAULT 0 COMMENT '1=approved,0=rejected/pending',
+  `apply_by` VARCHAR(64) DEFAULT NULL COMMENT 'Applicant username',
+  `apply_time` DATETIME DEFAULT NULL COMMENT 'Apply submit time',
   `review_by` VARCHAR(64) DEFAULT NULL,
   `review_time` DATETIME DEFAULT NULL,
   `remark` VARCHAR(255) DEFAULT NULL,
@@ -59,10 +64,10 @@ CREATE TABLE `company_auth` (
 -- -------------------------------------------------
 -- Step 3: Seed company review data
 -- -------------------------------------------------
-INSERT INTO `company_auth` (`company_id`, `company_name`, `review_status`, `review_by`, `review_time`, `remark`)
+INSERT INTO `company_auth` (`company_id`, `company_name`, `review_status`, `apply_by`, `apply_time`, `review_by`, `review_time`, `remark`)
 VALUES
-  ('C001', '攸县老灶香干厂', 1, 'admin001', NOW(), 'Initialized as approved'),
-  ('C002', '湘东豆制品有限公司', 0, 'admin001', NOW(), 'Initialized as not approved');
+  ('C001', '攸县老灶香干厂', 1, 'admin001', NOW(), 'admin001', NOW(), 'Initialized as approved'),
+  ('C002', '湘东豆制品有限公司', 0, 'company01', NOW(), NULL, NULL, 'Initialized as not approved');
 
 -- -------------------------------------------------
 -- Step 4: Seed demo users
@@ -70,11 +75,11 @@ VALUES
 -- Initial password for all users below: password
 -- BCrypt hash value (password):
 -- $2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa
-INSERT INTO `auth_user` (`username`, `password_hash`, `role`, `company_id`, `status`, `deleted`)
+INSERT INTO `auth_user` (`username`, `phone`, `password_hash`, `role`, `company_id`, `status`, `deleted`)
 VALUES
-  ('admin001',  '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'ADMIN',    NULL,   1, 0),
-  ('company01', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'COMPANY',  'C001', 1, 0),
-  ('consumer01','$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'CONSUMER', NULL,   1, 0);
+  ('admin001',  '13800000001', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'ADMIN',    NULL,   1, 0),
+  ('company01', '13800000002', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'COMPANY',  'C001', 1, 0),
+  ('consumer01','13800000003', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'CONSUMER', NULL,   1, 0);
 
 SET FOREIGN_KEY_CHECKS = 1;
 

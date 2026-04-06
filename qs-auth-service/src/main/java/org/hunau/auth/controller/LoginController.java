@@ -23,16 +23,29 @@ public class LoginController {
     }
 
     @PostMapping("/login")
-    public R<String> login(@RequestParam String username,
+    public R<String> login(@RequestParam(required = false) String username,
+                           @RequestParam(required = false) String account,
                            @RequestParam String password) {
-        SysUserDetails user = (SysUserDetails) userDetailsService.loadUserByUsername(username);
+        String loginId = normalize(account);
+        if (loginId.isEmpty()) {
+            loginId = normalize(username);
+        }
+        if (loginId.isEmpty()) {
+            return R.fail("用户名或手机号不能为空");
+        }
+
+        SysUserDetails user = (SysUserDetails) userDetailsService.loadUserByUsername(loginId);
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
             return R.fail("密码错误");
         }
 
-        String token = JwtUtil.generateToken(username, user.getRole());
+        String token = JwtUtil.generateToken(user.getUsername(), user.getRole(), user.getCompanyId());
         return R.ok(token);
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
     }
 }
 

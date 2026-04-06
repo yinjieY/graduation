@@ -3,7 +3,11 @@ package org.hunau.trace.controller;
 import org.hunau.common.R;
 import org.hunau.trace.entity.QsCode;
 import org.hunau.trace.model.req.ChangeQsStatusRequest;
+import org.hunau.trace.service.QrCodeImageService;
 import org.hunau.trace.service.QsCodeService;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.annotation.Resource;
@@ -14,11 +18,23 @@ public class QsCodeController {
 
     @Resource
     private QsCodeService qsCodeService;
+    @Resource
+    private QrCodeImageService qrCodeImageService;
 
     // 生成溯源二维码
     @PostMapping("/generate")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
     public R<?> generate(@RequestBody QsCode qsCode) {
         return qsCodeService.generateQs(qsCode);
+    }
+
+    @GetMapping(value = "/image/{fileName}", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<org.springframework.core.io.Resource> image(@PathVariable String fileName) {
+        org.springframework.core.io.Resource image = qrCodeImageService.loadImage(fileName);
+        if (!image.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(image);
     }
 
     // 根据qsId查询溯源信息
@@ -35,7 +51,15 @@ public class QsCodeController {
 
     // 二维码生命周期管理（active/invalid/frozen/cancelled）
     @PutMapping("/{qsId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public R<?> changeStatus(@PathVariable String qsId, @RequestBody ChangeQsStatusRequest request) {
+        return qsCodeService.changeStatus(qsId, request.getStatus());
+    }
+
+    // 系统自动处置（例如预警服务触发冻结）
+    @PutMapping("/{qsId}/status/internal")
+    @PreAuthorize("hasAnyRole('ADMIN','SERVICE')")
+    public R<?> changeStatusInternal(@PathVariable String qsId, @RequestBody ChangeQsStatusRequest request) {
         return qsCodeService.changeStatus(qsId, request.getStatus());
     }
 }

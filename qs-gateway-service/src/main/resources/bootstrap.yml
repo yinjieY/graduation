@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: qs-gateway-service
+  profiles:
+    active: dev
+
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        file-extension: yml
+        refresh-enabled: true
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}

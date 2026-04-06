@@ -10,14 +10,15 @@ public class ScanLog {
     private String batchId;
     private String companyId;
     private LocalDateTime scanTime;
-    private String maskedPhone;
     private String maskedIp;
     private String deviceFingerprint;
-    private String os;
     private String browser;
     private Double latitude;
     private Double longitude;
+    private String locationSource;
+    private Double distanceKm;
     private boolean firstScan;
     private boolean crossRegionRisk;
+    private boolean newDevice;
+    private boolean riskDevice;
 }
-

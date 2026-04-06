@@ -26,12 +26,22 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
     private static final String AUTH_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final Set<String> BUILTIN_PUBLIC_PATHS = Set.of(
+            "/auth/**",
+            "/register/**",
+            "/trace/scan/**",
+            "/trace/query/**",
+            "/trace/qs/image/**",
+            "/scan/report",
+            "/scan/logs/**"
+    );
 
     private final GatewayAuthProperties authProperties;
     private final ObjectMapper objectMapper;
@@ -70,6 +80,12 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isWhitelisted(String path) {
+        for (String pattern : BUILTIN_PUBLIC_PATHS) {
+            if (antPathMatcher.match(pattern, path)) {
+                return true;
+            }
+        }
+
         List<String> whitelist = authProperties.getAuthWhitelist();
         for (String pattern : whitelist) {
             if (antPathMatcher.match(pattern, path)) {

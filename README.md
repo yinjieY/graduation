@@ -1,3 +1,75 @@
+# 项目核心定位与任务书对应关系（答辩专用）
+
+## 一、项目本质（一句话总结）
+
+本项目**不是简单的二维码管理系统**，而是以**一物一码区块链溯源**为基础，叠加**实时规则引擎 + AI 异常检测**，实现**香干质量安全风险自动识别与分级处置**的全闭环监管预警系统。
+
+## 二、与毕业设计任务书的核心对应
+
+- **任务书题目**：基于人工智能的香干质量安全预警系统
+- **核心重点**：**判险**（解决传统溯源 “只存证、不判险、不预警” 问题）
+- **系统价值**：识别二维码回收复用、跨区域窜货、批量假码、异常刷单等风险
+
+## 三、系统两层核心架构
+
+1. **溯源层**
+
+   保证**码真实、信息可追溯、数据不可篡改**
+
+   - 一物一码绑定产品 / 批次 / 企业
+   - 国密 SM2 签名防伪造
+   - 区块链存证防篡改
+
+   
+
+2. **预警层**
+
+   实现**风险可识别、可分级、可处置**
+
+   
+
+   - 扫码行为实时分析
+   - 规则引擎 + AI 模型双通道判定
+   - 红黄蓝三级预警 + 自动冻结 / 推送 / 上链
+
+   
+
+## 四、标准业务流程（答辩推荐讲法）
+
+1. 企业生成溯源二维码（trace-service）
+2. 二维码绑定产品、批次、企业信息，实现一物一码
+3. 生成时使用**国密 SM2 签名**，防止伪造
+4. 用户扫码 → 先验签 → 校验二维码状态 → 记录扫码日志（scan-service）
+5. 提取风控特征：设备、IP、时间方差、位置方差
+6. **规则引擎 + AI 模型**融合计算风险分（alert-service）
+7. 风险分级处置：记录留痕 → 消息 / 短信 / 邮件推送 → 区块链冻结二维码
+
+离线训练与ONNX导出脚本见 `ml-pipeline/README.md`，对应任务书“SQL生成数据→特征抽取→双通道模型训练→蒸馏→ONNX→Java推理”。
+
+## 五、关键概念澄清
+
+### 1. 额度管控 vs 复用预警（你已实现 vs 未实现）
+
+- **公司发码额度控制**：业务层面，发码前限制企业可生成码数量（**未完整实现**）
+- **二维码复用预警**：安全风控层面，扫码后检测是否异常扫码、跨设备、跨区域（**你已实现**）
+
+### 2. 溯源真正含义
+
+溯源不只是 “发了多少码”，而是向监管与消费者证明：
+
+- 产品是谁生产、哪一批、何时生产
+- 二维码是否为真、是否被篡改
+- 是否存在异常扫码、窜货、复用风险
+
+### 3. 你项目的可信基座
+
+- `trace-service`：溯源码管理
+- `block-service`：区块链存证
+- `scan-service`：扫码日志采集
+- `alert-service`：风险预警与处置
+
+
+
 # 攸县香干区块链溯源系统模块分析与完善建议
 
 ## 一、整体优点（无需修改，保持原样）
@@ -113,6 +185,82 @@
 ###### 原始的模块总结已经非常扎实，上述优化均为“小幅补充、精准完善”，不改变原有设计，仅让模块描述更严谨、更贴合毕设需求和论文写作。优化后，可直接作为论文“系统模块设计”章节的核心内容，清晰体现系统架构、核心功能和技术亮点。
 
 [TOC]
+
+## 接口清单（持续维护）
+
+> 维护规则：后续新增/修改/删除任意接口时，必须在同一次提交中同步更新本节表格（路径、参数、作用、权限）。
+
+> 当前版本约束（V1）：采用“一手机号一公司（企业账号与 company_id 一一绑定）”模型；企业重复提交 `POST /auth/company/apply` 视为更新同一企业申请信息，并重置为待审核。
+
+### 1) qs-auth-service（9091）
+
+| 方法 | 路径 | 主要参数 | 作用 | 权限 |
+| --- | --- | --- | --- | --- |
+| POST | `/auth/login` | `account`(可选), `username`(可选), `password`(必填, form/query) | 用户登录并签发 JWT（含 role/companyId） | 公开 |
+| POST | `/auth/register/user` | Body:`username`,`phone`,`password`,`role(COMPANY/CONSUMER)`,`companyName?`,`remark?` | 普通用户/企业注册 | 公开 |
+| POST | `/register/user` | 同上（兼容路径） | 同上 | 公开 |
+| POST | `/auth/register/admin` | Body:`username`,`phone`,`password`,`companyName?`,`remark?` | 临时管理员注册（测试用） | 公开 |
+| POST | `/register/admin` | 同上（兼容路径） | 同上 | 公开 |
+| GET | `/auth/company/status/{companyId}` | Path:`companyId` | 查询企业认证状态 | 公开 |
+| POST | `/auth/company/apply` | Body:`companyName`,`remark?`（`companyId`仅管理员可显式传） | 企业提交认证申请（重复提交=更新同一申请并重置待审核） | `COMPANY/ADMIN` |
+| GET | `/auth/company/pending` | 无 | 查询待审核企业列表 | `ADMIN` |
+| PUT | `/auth/company/review/{companyId}` | Path:`companyId` + Body:`approved`,`companyName?`,`remark?` | 审核企业认证（通过后自动触发企业主档初始化） | `ADMIN` |
+| PUT | `/auth/company/review/{companyId}?approved=true/false` | Path:`companyId` + Query:`approved` | 审核兼容接口 | `ADMIN` |
+
+### 2) qs-trace-service（9092）
+
+| 方法 | 路径 | 主要参数 | 作用 | 权限 |
+| --- | --- | --- | --- | --- |
+| POST | `/trace/company/init` | Body:`companyId`,`name`,`level?`,`address?`,`contactPhone?`,`status?` | 内部幂等初始化企业主档（审核通过后自动调用） | 内部调用 |
+| POST | `/trace/company/create` | Body:`companyId?`,`name`,`level?`,`address`,`contactPhone`,`status?`（企业可不传 companyId，后端取 token；管理员必须传） | 企业信息建档（company） | `ADMIN/COMPANY` |
+| GET | `/trace/company/list` | 无 | 企业列表查询 | 登录可访问 |
+| PUT | `/trace/company/update` | Body:`companyId?`,`name`,`address`,`contactPhone`,...（企业可不传 companyId，后端取 token；管理员必须传） | 修改企业基础信息（企业不可修改 `level/status`） | `ADMIN/COMPANY` |
+| PUT | `/trace/company/governance` | Body:`companyId`,`level?`,`status?` | 修改企业治理字段（等级/启用状态） | `ADMIN` |
+| DELETE | `/trace/company/delete/{companyId}` | Path:`companyId` | 删除企业信息 | `ADMIN` |
+| POST | `/trace/batch/create` | Body:`companyId?`,`productionDate`,`ingredients`,`productionStandard`,`totalQuantity`,`batchId?`（企业可不传 companyId，后端取 token；管理员必须传） | 产品批次建档（product_batch） | `ADMIN/COMPANY` |
+| GET | `/trace/batch/list` | Query:`companyId?` | 批次列表查询 | 登录可访问 |
+| POST | `/trace/qs/generate` | Body:`batchId`,`companyId?`,`status?`,`maxAllowedScans?`（企业可不传 companyId，后端取 token；管理员必须传） | 二维码生成与绑定（qs_code） | `ADMIN/COMPANY` |
+| GET | `/trace/qs/image/{fileName}` | Path:`fileName`（如 `{qsId}.png`） | 获取服务端生成的二维码图片 | 公开 |
+| GET | `/trace/scan/index.html` | Query:`qsId`,`batchId`,`companyId`,`payload`,`signature` | 扫码入口页：展示溯源信息并自动上报扫码行为 | 公开 |
+| GET | `/trace/query/{qsId}` | Path:`qsId` | 公开查询二维码溯源详情（扫码页调用） | 公开 |
+| GET | `/trace/qs/get/{qsId}` | Path:`qsId` | 查询单个二维码溯源详情 | 登录可访问 |
+| GET | `/trace/qs/list` | 无 | 二维码列表 | 登录可访问 |
+| PUT | `/trace/qs/{qsId}/status` | Path:`qsId` + Body:`status` | 管理员手动变更二维码状态 | `ADMIN` |
+| PUT | `/trace/qs/{qsId}/status/internal` | Path:`qsId` + Body:`status` | 系统自动处置二维码状态（预警联动） | `ADMIN/SERVICE` |
+
+### 3) qs-scan-service（9093）
+
+| 方法 | 路径 | 主要参数 | 作用 | 权限 |
+| --- | --- | --- | --- | --- |
+| POST | `/scan/report` | Body:`qsId`,`batchId?`,`companyId?`,`signature`,`signaturePayload`,`ip?`,`deviceFingerprint`,`browser?`,`latitude?`,`longitude?`,`expectedLatitude?`,`expectedLongitude?`,`locationSource?` | 上报扫码日志并触发验签、风控评估 | 公开 |
+| GET | `/scan/logs/{qsId}` | Path:`qsId` | 按二维码查询扫码日志 | 公开 |
+
+### 4) qs-alert-service（9094）
+
+| 方法 | 路径 | 主要参数 | 作用 | 权限 |
+| --- | --- | --- | --- | --- |
+| POST | `/alert/evaluate` | Body:`qsId`,`companyId`,`scanCount1h`,`deviceCount1d`,`ipCount1h`,`timeVariance`,`locationVariance`,`newDevice?`,`riskDevice?`,`distanceKm?`,`city?`,`province?`（兼容旧字段`scanCount/deviceCount/ipCount`） | 规则引擎 + AI 双通道风险评估并生成预警/联动动作 | 登录可访问 |
+| GET | `/alert/list` | 无 | 预警记录列表 | 登录可访问 |
+| GET | `/alert/rules` | 无 | 查询规则配置（来自`alert_rule`） | 登录可访问 |
+| PUT | `/alert/rules/{ruleId}/threshold` | Path:`ruleId` + Body:`threshold`（如`1h>=8`） | 动态修改阈值并立即热更新Drools | 登录可访问 |
+| PUT | `/alert/rules/{ruleId}/status` | Path:`ruleId` + Body:`status`（0禁用/1启用） | 启停规则并立即热更新Drools | 登录可访问 |
+| POST | `/alert/rules/reload` | 无 | 手动触发规则重载 | 登录可访问 |
+
+### 5) qs-block-service（9095）
+
+| 方法 | 路径 | 主要参数 | 作用 | 权限 |
+| --- | --- | --- | --- | --- |
+| POST | `/block/proof/qr` | Body:`qsId`, 其他业务字段可附带 | 保存二维码创建存证 | 登录可访问 |
+| POST | `/block/proof/event` | Body:`eventId`, 其他业务字段可附带 | 保存预警事件存证 | 登录可访问 |
+| POST | `/block/proof/freeze` | Body:`qsId`, 其他业务字段可附带 | 保存冻结动作存证 | 登录可访问 |
+| GET | `/block/proof/verify` | Query:`businessKey`,`hash` | 校验指定业务哈希是否存在 | 登录可访问 |
+| GET | `/block/proof/list/{businessKey}` | Path:`businessKey` | 查询某业务键的存证历史 | 登录可访问 |
+
+### 6) 网关访问说明（qs-gateway-service，9090）
+
+- 网关已配置前缀路由：`/auth/**`、`/trace/**`、`/scan/**`、`/alert/**`、`/block/**`。
+- 联调优先建议走网关地址：`http://localhost:9090` + 上述路径。
+- 直连端口（9091~9095）可用于服务单测与问题定位。
 
 
 
@@ -419,3 +567,110 @@ public class LoginController {
  */
 ```
 
+
+
+# 攸县香干区块链溯源系统 — 模块映射与开发流程（答辩专用版）
+
+## 一、模块统一映射（必背）
+
+为便于项目管理与答辩讲解，统一模块命名如下：
+
+表格
+
+
+
+
+
+| 项目模块                        | 对应代码模块       | 核心职责                     |
+|-----------------------------| ------------------ | ---------------------------- |
+| **yx-auth-service:9091**    | qs-auth-service    | 登录认证、企业审核、用户权限 |
+| **yx-trace-service:9092**   | qs-trace-service   | 企业、批次、二维码主数据管理 |
+| **yx-scan-service:9093**    | qs-scan-service    | 扫码日志、设备画像采集       |
+| **yx-alert-service:9094**   | qs-alert-service   | 风险规则、预警生成、处置动作 |
+| **yx-block-service:9095**   | qs-block-service   | 区块链存证、数据防篡改       |
+| **qs-common**               | qs-common          | 工具类、JWT、通用返回（R）   |
+| **qs-gateway-service:9090** | qs-gateway-service | 统一入口、JWT 鉴权、路由转发 |
+
+------
+
+## 二、业务执行顺序（从简单到复杂）
+
+### 1. 流程链路
+
+1. **用户登录 / 注册**：系统身份入口；**前置**：无；**产出**：JWT 令牌
+2. **企业认证审核**：决定企业是否具备生产资格；**前置**：管理员登录；**产出**：`company_auth.review_status`
+3. **企业信息建档**：审核通过后系统自动初始化企业主档（`company`），企业可再完善信息；**前置**：企业认证通过
+4. **产品批次建档**：创建生产批次（`product_batch`）；**前置**：企业存在且可用
+5. **二维码生成与绑定**：创建溯源码（`qs_code`）并关联批次；**前置**：批次存在、企业审核通过
+6. **二维码签名 / 验真**：生成 SM2 国密签名；**前置**：二维码主数据已生成
+7. **二维码上链存证**：写入区块链存证（`blockchain_proof`）；**前置**：二维码生成成功
+8. **扫码采集**：记录扫码日志（`scan_log`）+ 设备地理画像；**前置**：二维码可用
+9. **规则 / AI 风险判定**：规则引擎 + 复用特征计算（`reuse_pattern`）；**前置**：有扫码数据
+10. **生成预警记录与动作**：写入预警（`alert_record`）与执行动作（`alert_action`）；**前置**：风险命中
+11. **高风险联动处置**：自动冻结二维码（`qs_code.status=frozen`）；**前置**：达到冻结策略
+12. **处置上链与闭环**：处置事件存证 + 监管处理完成；**前置**：已有预警与处置动作
+
+### 2. 一句话依赖链
+
+**鉴权可信 -> 主数据可信 -> 行为数据充足 -> 风险识别 -> 自动处置 -> 可审计闭环**
+
+------
+
+## 三、代码开发四阶段（推荐顺序）
+
+### 阶段 M1：鉴权打通（最小可用）
+
+- **目标**：实现登录获取 Token，接口能正确拦截鉴权
+- **核心表**：`yx_company_auth.auth_user`、`yx_company_auth.company_auth`
+- **核心接口**：登录、注册、企业审核基础接口
+- **核心配置**：网关白名单、`SecurityFilterChain`、`@PreAuthorize`角色控制
+- **验收标准**：401/403 状态码正确，角色权限区分清晰
+
+### 阶段 M2：溯源主流程（企业 -> 批次 -> 二维码）
+
+- **目标**：实现 “一码一物” 的生成与查询
+- **核心表**：`company`、`product_batch`、`qs_code`
+- **核心接口**：企业建档、批次创建、二维码生成 / 查询
+- **核心逻辑**：生成二维码前**强制校验**企业审核状态
+- **联调**：`trace-service` -> `auth-service`
+- **验收标准**：未审核企业禁止发码，已审核企业可正常发码
+
+### 阶段 M3：扫码 + 预警 + 冻结（核心亮点）
+
+- **目标**：实现 “扫码 -> 判险 -> 预警 -> 冻结” 自动化闭环
+- **核心表**：`scan_log`、`reuse_pattern`、`alert_rule`、`alert_record`、`alert_action`
+- **核心接口**：扫码上报、预警查询、二维码处置
+- **联调**：`scan-service` -> `alert-service` -> `trace-service`
+- **验收标准**：模拟高频扫码可触发预警，高风险自动冻结二维码
+
+### 阶段 M4：区块链存证与答辩材料
+
+- **目标**：关键数据上链，实现防篡改可追溯
+- **核心表**：`blockchain_proof`
+- **核心接口**：存证写入、存证核验查询
+- **联调**：`trace/alert-service` -> `block-service`
+- **验收标准**：二维码创建、预警、冻结事件均可查询存证记录
+
+### 7) 数据库补丁执行顺序（生产/联调升级）
+
+> 目标：在不重建库的前提下，兼容新增二维码长链接与扫码风险字段。
+
+1. 先升级 `yx_trace_core.qs_code.qs_url` 字段长度（避免二维码生成时报 `Data too long for column 'qs_url'`）。
+2. 再升级 `yx_scan_anomaly.scan_log` 扩展字段（支持设备画像/地址/距离风控）。
+3. 最后重启 `qs-trace-service` 与 `qs-scan-service`（确保新字段映射生效）。
+
+```sql
+SOURCE E:/Code/project/graduation/sql/patch_qs_url_length.sql;
+SOURCE E:/Code/project/graduation/sql/patch_scan_log_extensions.sql;
+SOURCE E:/Code/project/graduation/sql/patch_drop_scan_log_sensitive_fields.sql;
+```
+
+校验建议：
+
+```sql
+USE yx_trace_core;
+SHOW COLUMNS FROM qs_code LIKE 'qs_url';
+
+USE yx_scan_anomaly;
+SHOW COLUMNS FROM scan_log;
+```

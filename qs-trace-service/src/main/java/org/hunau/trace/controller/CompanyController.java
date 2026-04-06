@@ -1,10 +1,12 @@
 package org.hunau.trace.controller;
 
 import jakarta.annotation.Resource;
-import org.apache.ibatis.annotations.Update;
 import org.hunau.common.R;
 import org.hunau.trace.entity.Company;
+import org.hunau.trace.model.req.InitCompanyRequest;
+import org.hunau.trace.model.req.UpdateCompanyGovernanceRequest;
 import org.hunau.trace.service.CompanyService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,7 +16,13 @@ public class CompanyController {
     @Resource
     private CompanyService companyService;
 
+    @PostMapping("/init")
+    public R<?> init(@RequestBody InitCompanyRequest request) {
+        return companyService.initCompany(request);
+    }
+
     @PostMapping("/create")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
     public R<?> create(@RequestBody Company company) {
         return companyService.createCompany(company);
     }
@@ -28,17 +36,23 @@ public class CompanyController {
      * 修改企业信息
      */
     @PutMapping("/update")
-    public String update(@RequestBody Company company) {
-        companyService.updateById(company);
-        return "修改成功";
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<?> update(@RequestBody Company company) {
+        return companyService.updateById(company);
+    }
+
+    @PutMapping("/governance")
+    @PreAuthorize("hasRole('ADMIN')")
+    public R<?> updateGovernance(@RequestBody UpdateCompanyGovernanceRequest request) {
+        return companyService.updateGovernance(request);
     }
 
     /**
      * 删除企业信息
      */
     @DeleteMapping("/delete/{companyId}")
-    public String delete(@PathVariable String companyId) {
-        companyService.removeById(companyId);
-        return "删除成功";
+    @PreAuthorize("hasRole('ADMIN')")
+    public R<?> delete(@PathVariable String companyId) {
+        return companyService.removeById(companyId);
     }
 }

@@ -1,19 +1,42 @@
 spring:
+#  server:(nacos上的配置文件里设置了端口，这里注释掉，避免冲突)
+#    port: 8083
   application:
     name: qs-scan-service
+  profiles:
+    active: dev
+  config:
+    import: optional:nacos:qs-scan-service-${spring.profiles.active}.yml
   cloud:
     nacos:
       discovery:
         server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yml
   datasource:
     url: jdbc:mysql://localhost:3306/yx_scan_anomaly
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-server:
-  port: 8082
-
 app:
+#  crypto:
+#    sm2:
+#      # 生产环境请通过 Nacos/环境变量注入真实公钥
+#      public-key: TRACE_PRIVATE_KEY
+  clients:
+    trace-service-url: http://localhost:9092
+    alert-service-url: http://localhost:9094
+  feature:
+    reuse:
+      # production建议改为86400000(1天)；测试阶段默认2分钟
+      refresh-ms: 120000
+      initial-delay-ms: 15000
+      lookback-minutes: 1440
+      # 防止任务执行时读到“正在写入”的扫码记录，默认回退2秒作为快照边界
+      scan-update-lag-seconds: 2
+      # latest_scan_time - update_time 超过该阈值才更新，避免边界时刻重复刷新
+      min-update-gap-seconds: 1
   integration:
-    alert-evaluate-url: http://localhost:8083/alert/evaluate
+    alert-evaluate-url: http://localhost:9094/alert/evaluate

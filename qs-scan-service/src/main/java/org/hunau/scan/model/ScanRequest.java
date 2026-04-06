@@ -9,14 +9,12 @@ public class ScanRequest {
     private String companyId;
     private String signature;
     private String signaturePayload;
-    private String userPhone;
     private String ip;
     private String deviceFingerprint;
-    private String os;
     private String browser;
     private Double latitude;
     private Double longitude;
     private Double expectedLatitude;
     private Double expectedLongitude;
+    private String locationSource;
 }
-

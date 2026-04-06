@@ -19,11 +19,11 @@ public class SysUserDetailsService implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsername(String loginId) throws UsernameNotFoundException {
         String sql = """
-                SELECT username, password_hash, role, company_id, status
+                SELECT username, phone, password_hash, role, company_id, status
                 FROM auth_user
-                WHERE username = ? AND deleted = 0
+                WHERE (username = ? OR phone = ?) AND deleted = 0
                 LIMIT 1
                 """;
 
@@ -35,7 +35,7 @@ public class SysUserDetailsService implements UserDetailsService {
             details.setCompanyId(rs.getString("company_id"));
             details.setEnabled(rs.getInt("status") == 1);
             return details;
-        }, username);
+        }, loginId, loginId);
 
         if (users.isEmpty()) {
             throw new UsernameNotFoundException("用户不存在");

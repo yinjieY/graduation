@@ -16,17 +16,24 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(SECRET.getBytes());
     }
 
-    // 生成 token（带角色）
+    // 兼容旧调用：仅用户名和角色
     public static String generateToken(String username, String role) {
-        return Jwts.builder()
+        return generateToken(username, role, null);
+    }
+
+    // 新调用：附带 companyId（企业用户场景）
+    public static String generateToken(String username, String role, String companyId) {
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(username)
                 .claim("role", role)
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
-                .signWith(getKey(), SignatureAlgorithm.HS256)
-                .compact();
+                .signWith(getKey(), SignatureAlgorithm.HS256);
+        if (companyId != null && !companyId.isBlank()) {
+            builder.claim("companyId", companyId);
+        }
+        return builder.compact();
     }
 
-    // 解析用户名
     public static String getUsername(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getKey())
@@ -36,7 +43,6 @@ public class JwtUtil {
                 .getSubject();
     }
 
-    // 解析角色
     public static String getRole(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getKey())
@@ -46,7 +52,15 @@ public class JwtUtil {
                 .get("role", String.class);
     }
 
-    // 验证
+    public static String getCompanyId(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("companyId", String.class);
+    }
+
     public static boolean validate(String token) {
         try {
             Jwts.parserBuilder().setSigningKey(getKey()).build().parseClaimsJws(token);

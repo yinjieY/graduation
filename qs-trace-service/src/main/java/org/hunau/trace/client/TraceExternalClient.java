@@ -2,7 +2,6 @@ package org.hunau.trace.client;
 
 import org.hunau.common.R;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,44 +9,64 @@ import java.util.Map;
 @Component
 public class TraceExternalClient {
 
-    private final RestTemplate restTemplate;
+    private final AuthFeignClient authFeignClient;
+    private final BlockFeignClient blockFeignClient;
 
-    public TraceExternalClient(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
+    public TraceExternalClient(AuthFeignClient authFeignClient, BlockFeignClient blockFeignClient) {
+        this.authFeignClient = authFeignClient;
+        this.blockFeignClient = blockFeignClient;
     }
 
-    @SuppressWarnings("unchecked")
     public boolean isCompanyApproved(String companyId) {
-        String url = "http://localhost:8084/auth/company/status/" + companyId;
         try {
-            R<Map<String, Object>> resp = restTemplate.getForObject(url, R.class);
-            if (resp == null || resp.getData() == null) {
+            R<Map<String, Object>> resp = authFeignClient.queryCompanyStatus(companyId);
+            if (resp == null || resp.getCode() != 200 || resp.getData() == null) {
                 return false;
             }
-            Object approved = ((Map<String, Object>) resp.getData()).get("approved");
+            Object approved = resp.getData().get("approved");
+            if (approved instanceof String approvedText) {
+                return Boolean.parseBoolean(approvedText);
+            }
             return Boolean.TRUE.equals(approved);
         } catch (Exception ex) {
             return false;
         }
     }
 
-    public void saveQrProof(String qsId, String batchId, String companyId, String signature) {
-        String url = "http://localhost:8085/block/proof/qr";
+    public void saveQrProof(String qsId,
+                            String batchId,
+                            String companyId,
+                            String signature,
+                            String signaturePayload,
+                            String qsUrl,
+                            String issueTime) {
         Map<String, Object> body = new HashMap<>();
         body.put("qsId", qsId);
         body.put("batchId", batchId);
         body.put("companyId", companyId);
         body.put("signature", signature);
-        restTemplate.postForObject(url, body, R.class);
+        body.put("signaturePayload", signaturePayload);
+        body.put("qsUrl", qsUrl);
+        body.put("issueTime", issueTime);
+        body.put("proofTime", java.time.LocalDateTime.now().toString());
+        body.put("proofVersion", "v1");
+        try {
+            blockFeignClient.saveQrProof(body);
+        } catch (Exception ignored) {
+            // keep trace issuance path non-blocking when proof service is unstable
+        }
     }
 
     public void saveFreezeProof(String qsId, String status, String reason) {
-        String url = "http://localhost:8085/block/proof/freeze";
         Map<String, Object> body = new HashMap<>();
         body.put("qsId", qsId);
         body.put("status", status);
         body.put("reason", reason);
-        restTemplate.postForObject(url, body, R.class);
+        try {
+            blockFeignClient.saveFreezeProof(body);
+        } catch (Exception ignored) {
+            // keep trace status path non-blocking when proof service is unstable
+        }
     }
 }
 

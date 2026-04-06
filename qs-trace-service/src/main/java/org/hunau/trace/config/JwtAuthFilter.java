@@ -5,11 +5,13 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.hunau.common.util.JwtUtil;
+import org.hunau.trace.security.AuthPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -26,11 +28,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (JwtUtil.validate(token)) {
                 String username = JwtUtil.getUsername(token);
                 String role = JwtUtil.getRole(token);
+                String companyId = JwtUtil.getCompanyId(token);
 
-                // 这里现在 100% 能找到了！
+                AuthPrincipal principal = new AuthPrincipal(username, role, companyId);
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                                username, null,
+                                principal, null,
                                 List.of(new SimpleGrantedAuthority("ROLE_" + role))
                         );
 
