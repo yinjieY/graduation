@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理员工作台</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f8fb; color: #1f2937; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    h2, h3 { margin: 0 0 10px; }
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    input, textarea, button { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; }
+    textarea { min-height: 70px; }
+    button { cursor: pointer; background: #2563eb; border-color: #2563eb; color: #fff; }
+    button.secondary { background: #fff; color: #2563eb; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eef2f7; padding: 8px; text-align: left; font-size: 13px; }
+    .muted { color: #6b7280; font-size: 12px; }
+    .ops { display: flex; gap: 8px; }
+    .ops button { width: auto; padding: 6px 10px; }
+    pre { white-space: pre-wrap; background: #111827; color: #d1fae5; border-radius: 8px; padding: 10px; font-size: 12px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h2>管理员页面</h2>
+  <div class="muted">功能：管理员注册、企业审查、消息系统</div>
+
+  <div class="card">
+    <h3>登录获取Token</h3>
+    <div class="row">
+      <input id="loginAccount" aria-label="登录账号" placeholder="账号(用户名或手机号)" value="admin001" />
+      <input id="loginPwd" aria-label="登录密码" placeholder="密码" type="password" value="password" />
+      <button onclick="login()">登录</button>
+    </div>
+    <div style="margin-top:8px;">
+      <textarea id="token" aria-label="认证Token" placeholder="Bearer Token"></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>管理员注册</h3>
+    <div class="row">
+      <input id="regUsername" aria-label="用户名" placeholder="用户名" />
+      <input id="regPhone" aria-label="手机号" placeholder="手机号" />
+      <input id="regEmail" aria-label="邮箱" placeholder="邮箱" />
+      <input id="regPassword" aria-label="密码" placeholder="密码" type="password" />
+    </div>
+    <div style="margin-top:8px;"><button onclick="registerAdmin()">注册管理员</button></div>
+  </div>
+
+  <div class="card">
+    <h3>企业基础审查</h3>
+    <div class="ops" style="margin-bottom:8px;">
+      <button onclick="loadPending()">刷新待审列表</button>
+    </div>
+    <table>
+      <thead>
+      <tr><th>企业ID</th><th>企业名</th><th>申请人</th><th>备注</th><th>操作</th></tr>
+      </thead>
+      <tbody id="pendingBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>消息系统</h3>
+    <div class="ops" style="margin-bottom:8px;">
+      <button onclick="loadMessages()">刷新消息</button>
+    </div>
+    <table>
+      <thead>
+      <tr><th>预警ID</th><th>企业</th><th>等级</th><th>原因</th><th>状态</th><th>动作结果</th></tr>
+      </thead>
+      <tbody id="msgBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>消费者反馈监管查看</h3>
+    <div class="ops" style="margin-bottom:8px;">
+      <button onclick="loadFeedbacks()">刷新反馈</button>
+    </div>
+    <table>
+      <thead>
+      <tr><th>反馈编号</th><th>二维码</th><th>企业</th><th>类型</th><th>风险</th><th>状态</th></tr>
+      </thead>
+      <tbody id="feedbackBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>调试输出</h3>
+    <pre id="debug"></pre>
+  </div>
+</div>
+
+<script>
+  function authHeaders() {
+    const token = document.getElementById('token').value.trim();
+    return token ? { 'Authorization': token.startsWith('Bearer ') ? token : ('Bearer ' + token) } : {};
+  }
+
+  async function login() {
+    const account = document.getElementById('loginAccount').value.trim();
+    const password = document.getElementById('loginPwd').value;
+    const body = new URLSearchParams({ account, password });
+    const resp = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    const data = await resp.json();
+    if (data.code === 200 && data.data) {
+      document.getElementById('token').value = 'Bearer ' + data.data;
+    }
+    debug(data);
+  }
+
+  async function registerAdmin() {
+    const payload = {
+      username: document.getElementById('regUsername').value.trim(),
+      phone: document.getElementById('regPhone').value.trim(),
+      email: document.getElementById('regEmail').value.trim(),
+      password: document.getElementById('regPassword').value,
+      role: 'ADMIN'
+    };
+    const resp = await fetch('/auth/register/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    debug(await resp.json());
+  }
+
+  async function loadPending() {
+    const resp = await fetch('/auth/company/pending', { headers: authHeaders() });
+    const data = await resp.json();
+    const tbody = document.getElementById('pendingBody');
+    tbody.innerHTML = '';
+    (data.data || []).forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (item.companyId || '') + '</td>'
+        + '<td>' + (item.companyName || '') + '</td>'
+        + '<td>' + (item.applyBy || '') + '</td>'
+        + '<td>' + (item.remark || '') + '</td>'
+        + '<td class="ops">'
+        + '<button onclick="reviewCompany(\'' + item.companyId + '\', true)">通过</button>'
+        + '<button class="secondary" onclick="reviewCompany(\'' + item.companyId + '\', false)">拒绝</button>'
+        + '</td>';
+      tbody.appendChild(tr);
+    });
+    debug(data);
+  }
+
+  async function reviewCompany(companyId, approved) {
+    const body = { approved, remark: approved ? '管理员审核通过' : '管理员审核拒绝' };
+    const resp = await fetch('/auth/company/review/' + encodeURIComponent(companyId), {
+      method: 'PUT',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    debug(data);
+    await loadPending();
+  }
+
+  async function loadMessages() {
+    const resp = await fetch('/alert/messages', { headers: authHeaders() });
+    const data = await resp.json();
+    const tbody = document.getElementById('msgBody');
+    tbody.innerHTML = '';
+    (data.data || []).forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (item.alertId || '') + '</td>'
+        + '<td>' + (item.companyId || '') + '</td>'
+        + '<td>' + (item.alertLevel || '') + '</td>'
+        + '<td>' + (item.reason || '') + '</td>'
+        + '<td>' + (item.status || '') + '</td>'
+        + '<td>' + (item.actionResult || '') + '</td>';
+      tbody.appendChild(tr);
+    });
+    debug(data);
+  }
+
+  async function loadFeedbacks() {
+    const resp = await fetch('/scan/feedback/list', { headers: authHeaders() });
+    const data = await resp.json();
+    const tbody = document.getElementById('feedbackBody');
+    tbody.innerHTML = '';
+    (data.data || []).forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (item.feedbackId || '') + '</td>'
+        + '<td>' + (item.qsId || '') + '</td>'
+        + '<td>' + (item.companyId || '') + '</td>'
+        + '<td>' + (item.feedbackType || '') + '</td>'
+        + '<td>' + (item.riskLevel || '') + '</td>'
+        + '<td>' + (item.status || '') + '</td>';
+      tbody.appendChild(tr);
+    });
+    debug(data);
+  }
+
+  function debug(obj) {
+    document.getElementById('debug').textContent = JSON.stringify(obj, null, 2);
+  }
+</script>
+</body>
+</html>
+
+

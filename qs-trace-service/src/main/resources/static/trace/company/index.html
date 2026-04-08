@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>商家工作台</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f7fafc; color: #1f2937; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    h2, h3 { margin: 0 0 10px; }
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    input, textarea, button { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 8px; border: 1px solid #d1d5db; }
+    button { cursor: pointer; background: #2563eb; color: #fff; border-color: #2563eb; }
+    .ops { display: flex; gap: 8px; }
+    .ops button { width: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eef2f7; padding: 8px; font-size: 13px; text-align: left; }
+    .muted { color: #6b7280; font-size: 12px; }
+    pre { white-space: pre-wrap; background: #0f172a; color: #d1fae5; border-radius: 8px; padding: 10px; font-size: 12px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h2>商家页面</h2>
+  <div class="muted">功能：企业账号注册、企业认证申请、消息系统</div>
+
+  <div class="card">
+    <h3>商家注册</h3>
+    <div class="row">
+      <input id="regUsername" placeholder="用户名" />
+      <input id="regPhone" placeholder="手机号" />
+      <input id="regEmail" placeholder="邮箱" />
+      <input id="regPassword" type="password" placeholder="密码" />
+      <input id="regCompanyName" placeholder="企业名称" />
+    </div>
+    <div style="margin-top:8px;"><button onclick="registerCompany()">注册商家账号</button></div>
+  </div>
+
+  <div class="card">
+    <h3>登录获取Token</h3>
+    <div class="row">
+      <input id="loginAccount" placeholder="账号(用户名或手机号)" />
+      <input id="loginPwd" type="password" placeholder="密码" />
+      <button onclick="login()">登录</button>
+    </div>
+    <div style="margin-top:8px;"><textarea id="token" placeholder="Bearer Token"></textarea></div>
+  </div>
+
+  <div class="card">
+    <h3>企业认证申请</h3>
+    <div class="row">
+      <input id="applyCompanyId" placeholder="companyId（注册成功后自动带出）" />
+      <input id="applyCompanyName" placeholder="企业名称" />
+      <input id="applyRemark" placeholder="申请备注" />
+    </div>
+    <div class="ops" style="margin-top:8px;">
+      <button onclick="submitApply()">提交申请</button>
+      <button onclick="queryStatus()">查询认证状态</button>
+    </div>
+    <div id="statusText" class="muted" style="margin-top:8px;">状态：未查询</div>
+  </div>
+
+  <div class="card">
+    <h3>消息系统</h3>
+    <div class="ops" style="margin-bottom:8px;">
+      <button onclick="loadMessages()">刷新消息</button>
+    </div>
+    <table>
+      <thead>
+      <tr><th>预警ID</th><th>二维码</th><th>等级</th><th>原因</th><th>动作结果</th></tr>
+      </thead>
+      <tbody id="msgBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>调试输出</h3>
+    <pre id="debug"></pre>
+  </div>
+</div>
+
+<script>
+  function authHeaders() {
+    const token = document.getElementById('token').value.trim();
+    return token ? { 'Authorization': token.startsWith('Bearer ') ? token : ('Bearer ' + token) } : {};
+  }
+
+  async function registerCompany() {
+    const payload = {
+      username: document.getElementById('regUsername').value.trim(),
+      phone: document.getElementById('regPhone').value.trim(),
+      email: document.getElementById('regEmail').value.trim(),
+      password: document.getElementById('regPassword').value,
+      role: 'COMPANY',
+      companyName: document.getElementById('regCompanyName').value.trim()
+    };
+    const resp = await fetch('/auth/register/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.code === 200 && data.data) {
+      document.getElementById('applyCompanyId').value = data.data.companyId || '';
+      document.getElementById('applyCompanyName').value = data.data.companyName || payload.companyName;
+    }
+    debug(data);
+  }
+
+  async function login() {
+    const account = document.getElementById('loginAccount').value.trim();
+    const password = document.getElementById('loginPwd').value;
+    const body = new URLSearchParams({ account, password });
+    const resp = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    const data = await resp.json();
+    if (data.code === 200 && data.data) {
+      document.getElementById('token').value = 'Bearer ' + data.data;
+    }
+    debug(data);
+  }
+
+  async function submitApply() {
+    const payload = {
+      companyId: document.getElementById('applyCompanyId').value.trim(),
+      companyName: document.getElementById('applyCompanyName').value.trim(),
+      remark: document.getElementById('applyRemark').value.trim()
+    };
+    const resp = await fetch('/auth/company/apply', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.code === 200 && data.data) {
+      document.getElementById('statusText').textContent = '状态：' + (data.data.statusText || 'PENDING');
+    }
+    debug(data);
+  }
+
+  async function queryStatus() {
+    const companyId = document.getElementById('applyCompanyId').value.trim();
+    if (!companyId) {
+      alert('请先填写 companyId');
+      return;
+    }
+    const resp = await fetch('/auth/company/status/' + encodeURIComponent(companyId), { headers: authHeaders() });
+    const data = await resp.json();
+    if (data.code === 200 && data.data) {
+      document.getElementById('statusText').textContent = '状态：' + (data.data.statusText || '') + '，备注：' + (data.data.remark || '');
+    }
+    debug(data);
+  }
+
+  async function loadMessages() {
+    const resp = await fetch('/alert/messages', { headers: authHeaders() });
+    const data = await resp.json();
+    const tbody = document.getElementById('msgBody');
+    tbody.innerHTML = '';
+    (data.data || []).forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (item.alertId || '') + '</td>'
+        + '<td>' + (item.qsId || '') + '</td>'
+        + '<td>' + (item.alertLevel || '') + '</td>'
+        + '<td>' + (item.reason || '') + '</td>'
+        + '<td>' + (item.actionResult || '') + '</td>';
+      tbody.appendChild(tr);
+    });
+    debug(data);
+  }
+
+  function debug(obj) {
+    document.getElementById('debug').textContent = JSON.stringify(obj, null, 2);
+  }
+</script>
+</body>
+</html>
+
