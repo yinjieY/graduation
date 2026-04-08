@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [vue()],
-  base: '/trace/app/',
+  // Dev must use root base, otherwise /trace/app/* hits proxy '/trace' and returns 401 from backend.
+  base: command === 'serve' ? '/' : '/trace/app/',
   server: {
     port: 5173,
     proxy: {
@@ -13,5 +14,5 @@ export default defineConfig({
       '/trace': 'http://localhost:9090'
     }
   }
-});
+}));
 

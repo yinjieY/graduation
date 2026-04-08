@@ -60,7 +60,7 @@ public class NotificationGateway {
         boolean needMail = level == RiskLevel.MEDIUM;
 
         ChannelAttempt first = sendByRequiredChannels(record, needSms, needMail);
-        if (first.success || !retryOnce || (!first.smsFailed && !first.mailFailed)) {
+        if (first.success() || !retryOnce || (!first.smsFailed() && !first.mailFailed())) {
             return first.toResult(0);
         }
 
@@ -75,8 +75,8 @@ public class NotificationGateway {
     }
 
     private ChannelAttempt retryFailedChannels(AlertRecord record, ChannelAttempt first, boolean needSms, boolean needMail) {
-        boolean smsOk = !needSms || !first.smsFailed || sendSms(record);
-        boolean mailOk = !needMail || !first.mailFailed || sendMail(record);
+        boolean smsOk = !needSms || !first.smsFailed() || sendSms(record);
+        boolean mailOk = !needMail || !first.mailFailed() || sendMail(record);
         return new ChannelAttempt(smsOk, mailOk, needSms && !smsOk, needMail && !mailOk);
     }
 
@@ -164,8 +164,12 @@ public class NotificationGateway {
     }
 
     private record ChannelAttempt(boolean smsOk, boolean mailOk, boolean smsFailed, boolean mailFailed) {
+        private boolean success() {
+            return smsOk && mailOk;
+        }
+
         private NotificationResult toResult(int retryCount) {
-            boolean success = smsOk && mailOk;
+            boolean success = success();
             String pushStatus = success ? (retryCount > 0 ? "retry" : "success") : "fail";
             String message = success
                     ? (retryCount > 0 ? "发送预警成功(重试1次后成功)" : "发送预警成功")

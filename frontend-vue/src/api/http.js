@@ -1,18 +1,26 @@
+import { normalizeBearerToken } from './session';
+
 export async function apiFetch(url, options = {}) {
   const resp = await fetch(url, options);
-  const data = await resp.json();
+  const contentType = resp.headers.get('content-type') || '';
+  const data = contentType.includes('application/json') ? await resp.json() : await resp.text();
   if (!resp.ok) {
-    throw new Error(data?.msg || '请求失败');
+    const message = (data && typeof data === 'object' ? data.msg : '') || `请求失败(${resp.status})`;
+    const error = new Error(message);
+    error.status = resp.status;
+    error.payload = data;
+    throw error;
   }
   return data;
 }
 
 export function authHeaders(token) {
-  if (!token) {
+  const bearer = normalizeBearerToken(token);
+  if (!bearer) {
     return {};
   }
   return {
-    Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`
+    Authorization: bearer
   };
 }
 

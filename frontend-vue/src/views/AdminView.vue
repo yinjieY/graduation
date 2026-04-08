@@ -1,16 +1,21 @@
 <template>
-  <div>
-    <h2>管理员页面</h2>
-    <div class="muted">Vue3版本：企业审查 + 消息 + 反馈处理</div>
+  <div class="panel">
+    <h2 class="panel-title">管理员工作台</h2>
+    <div class="muted">企业审查、预警消息与消费者反馈处置</div>
+    <div v-if="notice" class="status-line" :class="{ error: noticeType === 'error' }">{{ notice }}</div>
 
     <section class="card">
       <h3>登录</h3>
       <div class="row">
         <input v-model="loginForm.account" placeholder="账号" />
         <input v-model="loginForm.password" placeholder="密码" type="password" />
-        <button @click="onLogin">登录</button>
       </div>
-      <textarea v-model="token" placeholder="Bearer Token" style="margin-top:8px;"></textarea>
+      <div class="ops" style="margin-top:8px;">
+        <button :disabled="loading" @click="onLogin">登录并加载数据</button>
+        <button class="secondary" :disabled="loading" @click="syncToken">保存Token</button>
+        <button class="danger" :disabled="loading" @click="onLogout">退出登录</button>
+      </div>
+      <textarea v-model="token" placeholder="Bearer Token（调试可直接粘贴）" style="margin-top:8px;"></textarea>
     </section>
 
     <section class="card">
@@ -21,12 +26,12 @@
         <input v-model="registerForm.email" placeholder="邮箱" />
         <input v-model="registerForm.password" placeholder="密码" type="password" />
       </div>
-      <div style="margin-top:8px;"><button @click="onRegister">注册</button></div>
+      <div class="ops" style="margin-top:8px;"><button :disabled="loading" @click="onRegister">注册</button></div>
     </section>
 
     <section class="card">
       <h3>企业审查</h3>
-      <div class="ops" style="margin-bottom:8px;"><button @click="loadPending">刷新待审列表</button></div>
+      <div class="ops" style="margin-bottom:8px;"><button :disabled="loading" @click="loadPending">刷新待审列表</button></div>
       <table>
         <thead><tr><th>企业ID</th><th>企业名</th><th>申请人</th><th>备注</th><th>操作</th></tr></thead>
         <tbody>
@@ -36,8 +41,8 @@
           <td>{{ item.applyBy }}</td>
           <td>{{ item.remark }}</td>
           <td class="ops">
-            <button @click="review(item.companyId, true)">通过</button>
-            <button class="secondary" @click="review(item.companyId, false)">拒绝</button>
+            <button :disabled="loading" @click="review(item.companyId, true)">通过</button>
+            <button class="secondary" :disabled="loading" @click="review(item.companyId, false)">拒绝</button>
           </td>
         </tr>
         </tbody>
@@ -46,11 +51,11 @@
 
     <section class="card">
       <h3>消息系统</h3>
-      <div class="ops" style="margin-bottom:8px;"><button @click="loadMessages">刷新消息</button></div>
+      <div class="ops" style="margin-bottom:8px;"><button :disabled="loading" @click="loadMessages">刷新消息</button></div>
       <table>
         <thead><tr><th>预警ID</th><th>企业</th><th>等级</th><th>原因</th><th>状态</th><th>动作结果</th></tr></thead>
         <tbody>
-        <tr v-for="item in filteredMessages" :key="item.alertId" :class="{ highlight: query.alertId && String(item.alertId) === query.alertId }">
+        <tr v-for="item in filteredMessages" :key="item.alertId" :class="{ highlight: query.alertId && String(item.alertId) === String(query.alertId) }">
           <td>{{ item.alertId }}</td>
           <td>{{ item.companyId }}</td>
           <td>{{ item.alertLevel }}</td>
@@ -64,15 +69,11 @@
 
     <section class="card">
       <h3>反馈处理</h3>
-      <div class="ops" style="margin-bottom:8px;"><button @click="loadFeedbacks">刷新反馈</button></div>
+      <div class="ops" style="margin-bottom:8px;"><button :disabled="loading" @click="loadFeedbacks">刷新反馈</button></div>
       <table>
         <thead><tr><th>反馈编号</th><th>二维码</th><th>企业</th><th>类型</th><th>风险</th><th>状态</th><th>提交IP</th><th>操作</th></tr></thead>
         <tbody>
-        <tr
-          v-for="item in filteredFeedbacks"
-          :key="item.feedbackId"
-          :class="{ highlight: query.feedbackId && item.feedbackId === query.feedbackId }"
-        >
+        <tr v-for="item in filteredFeedbacks" :key="item.feedbackId" :class="{ highlight: query.feedbackId && String(item.feedbackId) === String(query.feedbackId) }">
           <td>{{ item.feedbackId }}</td>
           <td>{{ item.qsId }}</td>
           <td>{{ item.companyId }}</td>
@@ -81,9 +82,9 @@
           <td>{{ item.status }}</td>
           <td>{{ item.submitterIpMasked }}</td>
           <td class="ops">
-            <button @click="loadDetail(item.feedbackId)">详情</button>
-            <button @click="updateStatus(item.feedbackId, 'ACCEPTED')">受理</button>
-            <button class="secondary" @click="updateStatus(item.feedbackId, 'REJECTED')">驳回</button>
+            <button :disabled="loading" @click="loadDetail(item.feedbackId)">详情</button>
+            <button :disabled="loading" @click="updateStatus(item.feedbackId, 'ACCEPTED')">受理</button>
+            <button class="secondary" :disabled="loading" @click="updateStatus(item.feedbackId, 'REJECTED')">驳回</button>
           </td>
         </tr>
         </tbody>
@@ -93,14 +94,13 @@
         <h3>反馈详情</h3>
         <div class="row">
           <input v-model="detailForm.feedbackId" placeholder="反馈编号" />
-          <input v-model="detailForm.status" placeholder="状态(ACCEPTED/REJECTED/CLOSED)" />
-          <button @click="loadDetail(detailForm.feedbackId)">加载详情</button>
+          <button :disabled="loading" @click="loadDetail(detailForm.feedbackId)">加载详情</button>
         </div>
-        <textarea v-model="detailForm.handleNote" placeholder="处理备注" style="margin-top:8px;"></textarea>
+        <textarea v-model="detailForm.handleNote" placeholder="处理备注（会记录在结案说明中）" style="margin-top:8px;"></textarea>
         <div class="ops" style="margin-top:8px;">
-          <button @click="updateStatus(detailForm.feedbackId, 'ACCEPTED')">受理</button>
-          <button class="secondary" @click="updateStatus(detailForm.feedbackId, 'REJECTED')">驳回</button>
-          <button @click="updateStatus(detailForm.feedbackId, 'CLOSED')">结案</button>
+          <button :disabled="loading" @click="updateStatus(detailForm.feedbackId, 'ACCEPTED')">受理</button>
+          <button class="secondary" :disabled="loading" @click="updateStatus(detailForm.feedbackId, 'REJECTED')">驳回</button>
+          <button :disabled="loading" @click="updateStatus(detailForm.feedbackId, 'CLOSED')">结案</button>
         </div>
         <pre style="margin-top:8px;">{{ JSON.stringify(detailData, null, 2) }}</pre>
       </div>
@@ -119,12 +119,16 @@ import { useRoute } from 'vue-router';
 import { getMessages } from '../api/alert';
 import { getFeedbackDetail, getFeedbackList, updateFeedbackStatus } from '../api/feedback';
 import { getPending, login, registerAdmin, reviewCompany } from '../api/auth';
+import { clearToken, getToken, setToken } from '../api/session';
 
 const route = useRoute();
-const token = ref(localStorage.getItem('adminToken') || '');
+const token = ref(getToken('admin'));
+const loading = ref(false);
+const notice = ref('');
+const noticeType = ref('info');
 const loginForm = reactive({ account: 'admin001', password: 'password' });
 const registerForm = reactive({ username: '', phone: '', email: '', password: '' });
-const detailForm = reactive({ feedbackId: '', status: '', handleNote: '' });
+const detailForm = reactive({ feedbackId: '', handleNote: '' });
 const pendingList = ref([]);
 const messageList = ref([]);
 const feedbackList = ref([]);
@@ -155,24 +159,68 @@ const filteredFeedbacks = computed(() => {
   });
 });
 
-async function onLogin() {
-  const res = await login(loginForm.account, loginForm.password);
-  if (res.code === 200 && res.data) {
-    token.value = `Bearer ${res.data}`;
-    localStorage.setItem('adminToken', token.value);
-    await loadPending();
-    await loadMessages();
-    await loadFeedbacks();
-    if (query.value.feedbackId) {
-      await loadDetail(String(query.value.feedbackId));
+function setNotice(message, type = 'info') {
+  notice.value = message;
+  noticeType.value = type;
+}
+
+function resolveErrorMessage(error) {
+  return error?.message || '请求失败，请稍后再试';
+}
+
+function syncToken() {
+  token.value = setToken('admin', token.value);
+  setNotice('管理员Token已保存');
+}
+
+function onLogout() {
+  clearToken('admin');
+  token.value = '';
+  pendingList.value = [];
+  messageList.value = [];
+  feedbackList.value = [];
+  detailData.value = {};
+  setNotice('已退出登录');
+}
+
+async function withLoading(task, successMessage = '') {
+  loading.value = true;
+  try {
+    await task();
+    if (successMessage) {
+      setNotice(successMessage);
     }
+  } catch (error) {
+    if (error?.status === 401) {
+      onLogout();
+      setNotice('登录已过期，请重新登录', 'error');
+      return;
+    }
+    setNotice(resolveErrorMessage(error), 'error');
+  } finally {
+    loading.value = false;
   }
-  debugData.value = res;
+}
+
+async function onLogin() {
+  await withLoading(async () => {
+    const res = await login(loginForm.account, loginForm.password);
+    if (res.code === 200 && res.data) {
+      token.value = setToken('admin', res.data);
+      await Promise.all([loadPending(), loadMessages(), loadFeedbacks()]);
+      if (query.value.feedbackId) {
+        await loadDetail(String(query.value.feedbackId));
+      }
+    }
+    debugData.value = res;
+  }, '管理员登录成功');
 }
 
 async function onRegister() {
-  const res = await registerAdmin({ ...registerForm, role: 'ADMIN' });
-  debugData.value = res;
+  await withLoading(async () => {
+    const res = await registerAdmin({ ...registerForm, role: 'ADMIN' });
+    debugData.value = res;
+  }, '管理员注册请求已提交');
 }
 
 async function loadPending() {
@@ -182,9 +230,11 @@ async function loadPending() {
 }
 
 async function review(companyId, approved) {
-  const res = await reviewCompany(companyId, approved, token.value);
-  debugData.value = res;
-  await loadPending();
+  await withLoading(async () => {
+    const res = await reviewCompany(companyId, approved, token.value);
+    debugData.value = res;
+    await loadPending();
+  }, approved ? '已通过企业申请' : '已拒绝企业申请');
 }
 
 async function loadMessages() {
@@ -204,23 +254,27 @@ async function loadDetail(feedbackId) {
   const res = await getFeedbackDetail(feedbackId, token.value);
   detailData.value = res.data || {};
   detailForm.feedbackId = feedbackId;
-  detailForm.status = detailData.value.feedbackStatus || '';
   debugData.value = res;
 }
 
 async function updateStatus(feedbackId, status) {
   if (!feedbackId) return;
-  const res = await updateFeedbackStatus(feedbackId, status, detailForm.handleNote, token.value);
-  debugData.value = res;
-  await loadFeedbacks();
-  await loadDetail(feedbackId);
+  await withLoading(async () => {
+    const res = await updateFeedbackStatus(feedbackId, status, detailForm.handleNote, token.value);
+    debugData.value = res;
+    await loadFeedbacks();
+    await loadDetail(feedbackId);
+  }, `反馈 ${feedbackId} 已更新为 ${status}`);
 }
 
 onMounted(async () => {
-  if (token.value) {
-    await loadMessages();
-    await loadFeedbacks();
-  }
+  if (!token.value) return;
+  await withLoading(async () => {
+    await Promise.all([loadMessages(), loadFeedbacks(), loadPending()]);
+    if (query.value.feedbackId) {
+      await loadDetail(String(query.value.feedbackId));
+    }
+  });
 });
 </script>
 

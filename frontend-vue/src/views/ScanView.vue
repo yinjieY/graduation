@@ -1,7 +1,8 @@
 <template>
-  <div>
-    <h2>扫码溯源页面</h2>
-    <div class="muted">Vue3版本：溯源查询 + 扫码上报 + 质量反馈</div>
+  <div class="panel">
+    <h2 class="panel-title">扫码溯源页面</h2>
+    <div class="muted">无需登录，支持溯源查询、扫码上报与消费者反馈</div>
+    <div v-if="notice" class="status-line" :class="{ error: noticeType === 'error' }">{{ notice }}</div>
 
     <section class="card">
       <h3>扫码参数</h3>
@@ -13,8 +14,8 @@
         <input v-model="scanForm.signature" placeholder="signature" />
       </div>
       <div class="ops" style="margin-top:8px;">
-        <button @click="doQuery">查询溯源</button>
-        <button @click="doReport">上报扫码</button>
+        <button :disabled="loading" @click="doQuery">查询溯源</button>
+        <button :disabled="loading" @click="doReport">上报扫码</button>
       </div>
     </section>
 
@@ -30,7 +31,7 @@
         <input type="file" accept="image/*" @change="onFileChange" />
         <input v-model="feedbackForm.description" placeholder="描述(可选)" />
       </div>
-      <div style="margin-top:8px;"><button @click="submitFeedbackForm">提交反馈</button></div>
+      <div class="ops" style="margin-top:8px;"><button :disabled="loading" @click="submitFeedbackForm">提交反馈</button></div>
       <div class="muted" style="margin-top:8px;">反馈编号：{{ feedbackId || '-' }}</div>
     </section>
 
@@ -38,7 +39,7 @@
       <h3>反馈进度查询</h3>
       <div class="row">
         <input v-model="feedbackQueryId" placeholder="feedbackId" />
-        <button @click="queryStatus">��询状态</button>
+        <button :disabled="loading" @click="queryStatus">查询状态</button>
       </div>
     </section>
 
@@ -84,6 +85,28 @@ const feedbackForm = reactive({
 const feedbackId = ref('');
 const feedbackQueryId = ref('');
 const resultData = ref({});
+const loading = ref(false);
+const notice = ref('');
+const noticeType = ref('info');
+
+function setNotice(message, type = 'info') {
+  notice.value = message;
+  noticeType.value = type;
+}
+
+async function withLoading(task, successMessage = '') {
+  loading.value = true;
+  try {
+    await task();
+    if (successMessage) {
+      setNotice(successMessage);
+    }
+  } catch (error) {
+    setNotice(error?.message || '请求失败，请稍后重试', 'error');
+  } finally {
+    loading.value = false;
+  }
+}
 
 function onFileChange(e) {
   const files = e?.target?.files;
@@ -96,40 +119,51 @@ function fillGeo(position) {
 }
 
 async function doQuery() {
-  const res = await queryTrace(scanForm.qsId);
-  resultData.value = res;
+  await withLoading(async () => {
+    const res = await queryTrace(scanForm.qsId);
+    resultData.value = res;
+  });
 }
 
 async function doReport() {
-  const res = await reportScan(scanForm);
-  resultData.value = res;
+  await withLoading(async () => {
+    const res = await reportScan(scanForm);
+    resultData.value = res;
+  }, '扫码行为上报成功');
 }
 
 async function submitFeedbackForm() {
   if (!feedbackForm.image) {
-    resultData.value = { code: 400, msg: '请先上传图片' };
+    setNotice('请先上传图片', 'error');
     return;
   }
-  const formData = new FormData();
-  formData.set('qsId', scanForm.qsId);
-  formData.set('feedbackType', feedbackForm.feedbackType);
-  formData.set('deviceFingerprint', scanForm.deviceFingerprint);
-  formData.set('region', feedbackForm.region);
-  formData.set('description', feedbackForm.description);
-  if (scanForm.latitude) formData.set('latitude', String(scanForm.latitude));
-  if (scanForm.longitude) formData.set('longitude', String(scanForm.longitude));
-  formData.set('image', feedbackForm.image);
+  await withLoading(async () => {
+    const formData = new FormData();
+    formData.set('qsId', scanForm.qsId);
+    formData.set('feedbackType', feedbackForm.feedbackType);
+    formData.set('deviceFingerprint', scanForm.deviceFingerprint);
+    formData.set('region', feedbackForm.region);
+    formData.set('description', feedbackForm.description);
+    if (scanForm.latitude) formData.set('latitude', String(scanForm.latitude));
+    if (scanForm.longitude) formData.set('longitude', String(scanForm.longitude));
+    formData.set('image', feedbackForm.image);
 
-  const res = await submitFeedback(formData);
-  resultData.value = res;
-  feedbackId.value = res?.data?.feedbackId || '';
-  feedbackQueryId.value = feedbackId.value;
+    const res = await submitFeedback(formData);
+    resultData.value = res;
+    feedbackId.value = res?.data?.feedbackId || '';
+    feedbackQueryId.value = feedbackId.value;
+  }, '反馈提交成功，已生成反馈编号');
 }
 
 async function queryStatus() {
-  if (!feedbackQueryId.value) return;
-  const res = await queryFeedbackStatus(feedbackQueryId.value);
-  resultData.value = res;
+  if (!feedbackQueryId.value) {
+    setNotice('请先输入反馈编号', 'error');
+    return;
+  }
+  await withLoading(async () => {
+    const res = await queryFeedbackStatus(feedbackQueryId.value);
+    resultData.value = res;
+  });
 }
 
 onMounted(() => {
