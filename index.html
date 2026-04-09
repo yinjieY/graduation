@@ -1,384 +1,778 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>香干溯源查询</title>
-  <style>
-    :root { color-scheme: light; }
-    body { margin: 0; font-family: Arial, sans-serif; background: #f5f7fb; color: #1f2430; }
-    .container { max-width: 920px; margin: 0 auto; padding: 16px; }
-    h2 { margin: 0 0 10px; }
-    .muted { color: #6b7280; font-size: 13px; margin-bottom: 12px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(135deg, #0f766e, #0ea5e9); color: #fff; }
-    .hero .brand { font-size: 13px; opacity: 0.9; }
-    .hero .big { font-size: 20px; font-weight: 700; margin-top: 4px; }
-    .hero .stamp { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 999px; padding: 8px 12px; font-size: 12px; }
-    .title { margin: 0 0 10px; font-size: 16px; }
-    .kv { display: grid; grid-template-columns: 90px 1fr; row-gap: 8px; column-gap: 8px; font-size: 14px; }
-    .k { color: #6b7280; }
-    .v { word-break: break-word; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-    .ok { color: #0a7a21; }
-    .err { color: #b00020; }
-    .b-ok { background: #e7f8ed; color: #0a7a21; }
-    .b-err { background: #fdecef; color: #b00020; }
-    .b-warn { background: #fff7e6; color: #a05a00; }
-    .risk-bar { display: flex; border-radius: 999px; overflow: hidden; border: 1px solid #e5e7eb; }
-    .risk-part { flex: 1; text-align: center; padding: 6px 0; font-size: 12px; background: #f3f4f6; color: #4b5563; }
-    .risk-part.active.low { background: #e7f8ed; color: #0a7a21; }
-    .risk-part.active.mid { background: #fff7e6; color: #a05a00; }
-    .risk-part.active.high { background: #fdecef; color: #b00020; }
-    .conclusion { border-left: 4px solid #d1d5db; padding: 10px 12px; border-radius: 8px; background: #fff; }
-    .conclusion.low { border-left-color: #0a7a21; background: #f1fcf4; }
-    .conclusion.mid { border-left-color: #a05a00; background: #fff9ef; }
-    .conclusion.high { border-left-color: #b00020; background: #fff3f5; }
-    details { margin-top: 12px; }
-    pre { white-space: pre-wrap; word-break: break-all; background: #0f172a; color: #dbeafe; padding: 10px; border-radius: 8px; font-size: 12px; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>香干溯源查询</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --jade:       #0e6b52;
+  --jade-light: #1a8f6e;
+  --jade-dark:  #084035;
+  --gold:       #c9983a;
+  --gold-light: #e8b84b;
+  --cream:      #faf8f4;
+  --ink:        #1a1a1a;
+  --muted:      #6e7a6e;
+  --ok-bg:      #ebf7f2;
+  --ok-text:    #0a6640;
+  --err-bg:     #fdf0f0;
+  --err-text:   #961c1c;
+  --warn-bg:    #fdf7e8;
+  --warn-text:  #8a5a00;
+  --border:     rgba(14,107,82,0.15);
+  --shadow:     0 4px 24px rgba(14,107,82,0.1);
+  --shadow-lg:  0 12px 40px rgba(14,107,82,0.18);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Background Pattern ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(14,107,82,0.07) 0%, transparent 70%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230e6b52' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='1.5'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 0 48px;
+}
+
+/* ─── Header ─── */
+.header {
+  background: linear-gradient(160deg, var(--jade-dark) 0%, var(--jade) 60%, var(--jade-light) 100%);
+  padding: 32px 20px 64px;
+  position: relative;
+  overflow: hidden;
+}
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 40px;
+  background: var(--cream);
+  clip-path: ellipse(55% 100% at 50% 100%);
+}
+.header-ornament {
+  position: absolute;
+  top: -30px; right: -30px;
+  width: 160px; height: 160px;
+  border: 2px solid rgba(201,152,58,0.2);
+  border-radius: 50%;
+}
+.header-ornament::before {
+  content: '';
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(201,152,58,0.15);
+  border-radius: 50%;
+}
+.brand-line {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: rgba(255,255,255,0.6);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.brand-title {
+  font-family: 'ZCOOL XiaoWei', serif;
+  font-size: 26px;
+  color: #fff;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+.brand-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.05em;
+}
+
+/* ─── Verify Stamp ─── */
+.stamp-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: -44px;
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 2;
+}
+.stamp {
+  width: 88px; height: 88px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: var(--cream);
+  box-shadow: var(--shadow-lg), 0 0 0 4px var(--cream);
+  transition: all 0.5s ease;
+  position: relative;
+  overflow: hidden;
+}
+.stamp-inner {
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  transition: all 0.5s ease;
+}
+.stamp.checking { color: var(--muted); }
+.stamp.checking .stamp-inner { border-color: var(--muted); }
+.stamp.official { color: var(--jade); }
+.stamp.official .stamp-inner { border-color: var(--jade); background: var(--ok-bg); }
+.stamp.risk { color: var(--err-text); }
+.stamp.risk .stamp-inner { border-color: var(--err-text); background: var(--err-bg); }
+.stamp.warning { color: var(--warn-text); }
+.stamp.warning .stamp-inner { border-color: var(--gold); background: var(--warn-bg); }
+.stamp-icon { font-size: 28px; line-height: 1; }
+.stamp-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; }
+
+@keyframes pulse-ok {
+  0%, 100% { box-shadow: var(--shadow-lg), 0 0 0 4px var(--cream); }
+  50% { box-shadow: var(--shadow-lg), 0 0 0 4px var(--cream), 0 0 0 10px rgba(14,107,82,0.12); }
+}
+.stamp.official { animation: pulse-ok 2.5s ease-in-out infinite; }
+
+@keyframes spin-check {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.stamp.checking .stamp-icon { animation: spin-check 1.2s linear infinite; font-size: 22px; }
+
+/* ─── Cards Area ─── */
+.cards {
+  padding: 0 16px;
+}
+
+/* ─── Card ─── */
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+  animation: fadeUp 0.5s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card:nth-child(1) { animation-delay: 0.05s; }
+.card:nth-child(2) { animation-delay: 0.12s; }
+.card:nth-child(3) { animation-delay: 0.18s; }
+.card:nth-child(4) { animation-delay: 0.24s; }
+.card:nth-child(5) { animation-delay: 0.30s; }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(14,107,82,0.1);
+}
+.card-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--ok-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.card-title {
+  font-family: 'ZCOOL XiaoWei', serif;
+  font-size: 16px;
+  color: var(--jade-dark);
+}
+
+/* ─── Conclusion Banner ─── */
+.conclusion {
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  border-left: 3px solid var(--muted);
+  background: #f7f7f7;
+  color: var(--muted);
+  transition: all 0.4s ease;
+}
+.conclusion.low {
+  background: var(--ok-bg);
+  border-left-color: var(--jade);
+  color: var(--ok-text);
+}
+.conclusion.mid {
+  background: var(--warn-bg);
+  border-left-color: var(--gold);
+  color: var(--warn-text);
+}
+.conclusion.high {
+  background: var(--err-bg);
+  border-left-color: #d62626;
+  color: var(--err-text);
+}
+
+/* ─── Risk Bar ─── */
+.risk-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.risk-seg {
+  flex: 1;
+  border-radius: 8px;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: #f2f3f2;
+  color: #aaa;
+  transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
+}
+.risk-seg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.risk-seg.active.low  { background: var(--ok-bg); color: var(--ok-text); }
+.risk-seg.active.mid  { background: var(--warn-bg); color: var(--warn-text); }
+.risk-seg.active.high { background: var(--err-bg); color: var(--err-text); }
+.risk-seg.active::after {
+  content: '▼';
+  display: block;
+  font-size: 8px;
+  margin-top: 2px;
+  opacity: 0.6;
+}
+
+/* ─── KV Grid ─── */
+.kv { display: flex; flex-direction: column; gap: 10px; }
+.kv-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: 13.5px;
+}
+.kv-key {
+  color: var(--muted);
+  font-size: 12px;
+  padding-top: 1px;
+  font-weight: 500;
+}
+.kv-val { color: var(--ink); word-break: break-word; line-height: 1.5; }
+
+/* ─── Badge ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.badge-ok   { background: var(--ok-bg);   color: var(--ok-text); }
+.badge-err  { background: var(--err-bg);  color: var(--err-text); }
+.badge-warn { background: var(--warn-bg); color: var(--warn-text); }
+.badge-muted{ background: #f0f0f0; color: #888; }
+
+/* ─── Divider ─── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 12px 0;
+}
+
+/* ─── Status Row ─── */
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+.status-label { font-size: 12px; color: var(--muted); }
+
+/* ─── Location Card ─── */
+.loc-note {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+  padding: 10px 12px;
+  background: #f8faf8;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-top: 12px;
+}
+
+/* ─── Details ─── */
+details {
+  margin-top: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+summary {
+  padding: 14px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: '›';
+  font-size: 18px;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+details[open] summary::before { transform: rotate(90deg); }
+pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #0f172a;
+  color: #bfdbfe;
+  padding: 14px;
+  font-size: 11px;
+  line-height: 1.6;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ─── Footer ─── */
+.footer {
+  text-align: center;
+  padding: 24px 16px 8px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.footer-logo {
+  font-family: 'ZCOOL XiaoWei', serif;
+  font-size: 13px;
+  color: var(--jade);
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+/* ─── Loading Spinner ─── */
+.spin { display: inline-block; animation: spin-check 0.9s linear infinite; }
+
+/* ─── Responsive ─── */
+@media (max-width: 360px) {
+  .brand-title { font-size: 22px; }
+  .kv-row { grid-template-columns: 72px 1fr; }
+}
+</style>
 </head>
 <body>
-  <div class="container">
-    <h2>攸县香干溯源查询</h2>
-    <div class="muted">已自动完成官方二维码校验与扫码上报。</div>
-
-    <div class="card hero" style="margin-bottom:12px;">
-      <div>
-        <div class="brand">Youxian Tofu Trace Platform</div>
-        <div class="big">官方溯源校验结果</div>
-      </div>
-      <div class="stamp" id="heroStamp">校验中</div>
-    </div>
-
-    <div class="card" style="margin-bottom:12px;">
-      <h3 class="title">风险等级评估</h3>
-      <div class="risk-bar">
-        <div class="risk-part" id="riskLow">低风险</div>
-        <div class="risk-part" id="riskMid">中风险</div>
-        <div class="risk-part" id="riskHigh">高风险</div>
-      </div>
-      <div id="conclusion" class="conclusion" style="margin-top:10px;">系统正在生成结论...</div>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <h3 class="title">校验结果</h3>
-        <div class="kv">
-          <div class="k">官方性</div><div class="v" id="officialStatus">判定中...</div>
-          <div class="k">扫码状态</div><div class="v" id="scanStatus">处理中...</div>
-          <div class="k">上报状态</div><div class="v" id="reportStatus">等待上报...</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 class="title">定位信息</h3>
-        <div class="kv">
-          <div class="k">定位状态</div><div class="v" id="locStatus">等待定位...</div>
-          <div class="k">定位说明</div><div class="v" id="locReason">未开始</div>
-          <div class="k">本次坐标</div><div class="v" id="coordText">未获取</div>
-          <div class="k">信息用途</div><div class="v">仅用于判断是否异地异常扫码、辅助风险评估与预警，不会影响个人。</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid" style="margin-top:12px;">
-      <div class="card">
-        <h3 class="title">产品批次信息</h3>
-        <div class="kv">
-          <div class="k">批次号</div><div class="v" id="batchVal">-</div>
-          <div class="k">生产日期</div><div class="v" id="dateVal">-</div>
-          <div class="k">配料</div><div class="v" id="ingredientsVal">-</div>
-          <div class="k">执行标准</div><div class="v" id="standardVal">-</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 class="title">企业与二维码信息</h3>
-        <div class="kv">
-          <div class="k">企业名称</div><div class="v" id="companyVal">-</div>
-          <div class="k">企业地址</div><div class="v" id="companyAddrVal">-</div>
-          <div class="k">二维码ID</div><div class="v" id="qsVal">-</div>
-          <div class="k">二维码状态</div><div class="v" id="qsStatusVal">-</div>
-          <div class="k">签发时间</div><div class="v" id="issueVal">-</div>
-        </div>
-      </div>
-    </div>
-
-    <details>
-      <summary>技术详情（调试用）</summary>
-      <pre id="traceData">加载中...</pre>
-    </details>
+<div class="page">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-ornament"></div>
+    <div class="brand-line">Youxian Tofu Trace Platform</div>
+    <div class="brand-title">攸县香干<br>区块链溯源系统</div>
+    <div class="brand-sub">官方溯源 · 区块链存证 · 国密签名防伪</div>
   </div>
 
-  <script>
-    (function () {
-      const officialEl = document.getElementById('officialStatus');
-      const statusEl = document.getElementById('scanStatus');
-      const reportEl = document.getElementById('reportStatus');
-      const locStatusEl = document.getElementById('locStatus');
-      const locReasonEl = document.getElementById('locReason');
-      const coordEl = document.getElementById('coordText');
-      const traceEl = document.getElementById('traceData');
-      const heroStampEl = document.getElementById('heroStamp');
-      const riskLowEl = document.getElementById('riskLow');
-      const riskMidEl = document.getElementById('riskMid');
-      const riskHighEl = document.getElementById('riskHigh');
-      const conclusionEl = document.getElementById('conclusion');
+  <!-- Stamp -->
+  <div class="stamp-wrap">
+    <div class="stamp checking" id="stamp">
+      <div class="stamp-inner">
+        <div class="stamp-icon" id="stampIcon">⟳</div>
+        <div class="stamp-label" id="stampLabel">校验中</div>
+      </div>
+    </div>
+  </div>
 
-      const batchVal = document.getElementById('batchVal');
-      const dateVal = document.getElementById('dateVal');
-      const ingredientsVal = document.getElementById('ingredientsVal');
-      const standardVal = document.getElementById('standardVal');
-      const companyVal = document.getElementById('companyVal');
-      const companyAddrVal = document.getElementById('companyAddrVal');
-      const qsVal = document.getElementById('qsVal');
-      const qsStatusVal = document.getElementById('qsStatusVal');
-      const issueVal = document.getElementById('issueVal');
+  <div class="cards">
 
-      const params = new URLSearchParams(window.location.search);
-      const qsId = params.get('qsId') || '';
-      const batchId = params.get('batchId') || '';
-      const companyId = params.get('companyId') || '';
-      const signature = params.get('signature') || '';
-      const payload = params.get('payload') || '';
-      const expectedLatitude = Number(params.get('expectedLatitude'));
-      const expectedLongitude = Number(params.get('expectedLongitude'));
+    <!-- Risk Level Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🛡</div>
+        <div class="card-title">风险等级评估</div>
+      </div>
+      <div class="risk-bar">
+        <div class="risk-seg" id="riskLow">低风险</div>
+        <div class="risk-seg" id="riskMid">中风险</div>
+        <div class="risk-seg" id="riskHigh">高风险</div>
+      </div>
+      <div class="conclusion" id="conclusion">正在进行安全评估，请稍候…</div>
+    </div>
 
-      const setBadge = (el, text, type) => {
-        const cls = type === 'ok' ? 'b-ok' : (type === 'err' ? 'b-err' : 'b-warn');
-        el.innerHTML = '<span class="badge ' + cls + '">' + text + '</span>';
-      };
+    <!-- Verify Results Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">✅</div>
+        <div class="card-title">校验结果</div>
+      </div>
+      <div class="kv">
+        <div class="kv-row">
+          <div class="kv-key">官方性</div>
+          <div class="kv-val" id="officialStatus"><span class="badge badge-muted"><span class="spin">⟳</span> 判定中</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="kv-row">
+          <div class="kv-key">扫码状态</div>
+          <div class="kv-val" id="scanStatus"><span class="spin">⟳</span> 处理中…</div>
+        </div>
+        <div class="divider"></div>
+        <div class="kv-row">
+          <div class="kv-key">上报状态</div>
+          <div class="kv-val" id="reportStatus">等待上报…</div>
+        </div>
+      </div>
+    </div>
 
-      const setRiskLevel = (level, message) => {
-        riskLowEl.className = 'risk-part';
-        riskMidEl.className = 'risk-part';
-        riskHighEl.className = 'risk-part';
-        conclusionEl.className = 'conclusion';
+    <!-- Batch Info Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">📦</div>
+        <div class="card-title">产品批次信息</div>
+      </div>
+      <div class="kv">
+        <div class="kv-row"><div class="kv-key">批次编号</div><div class="kv-val" id="batchVal">—</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">生产日期</div><div class="kv-val" id="dateVal">—</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">配料信息</div><div class="kv-val" id="ingredientsVal">—</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">执行标准</div><div class="kv-val" id="standardVal">—</div></div>
+      </div>
+    </div>
 
-        if (level === 'low') {
-          riskLowEl.className = 'risk-part active low';
-          conclusionEl.className = 'conclusion low';
-        } else if (level === 'mid') {
-          riskMidEl.className = 'risk-part active mid';
-          conclusionEl.className = 'conclusion mid';
+    <!-- Company & QR Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🏭</div>
+        <div class="card-title">企业与二维码信息</div>
+      </div>
+      <div class="kv">
+        <div class="kv-row"><div class="kv-key">企业名称</div><div class="kv-val" id="companyVal">—</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">企业地址</div><div class="kv-val" id="companyAddrVal">—</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">二维码ID</div><div class="kv-val" id="qsVal">—</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">二维码状态</div><div class="kv-val" id="qsStatusVal">—</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">签发时间</div><div class="kv-val" id="issueVal">—</div></div>
+      </div>
+    </div>
+
+    <!-- Location Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">📍</div>
+        <div class="card-title">定位信息</div>
+      </div>
+      <div class="kv">
+        <div class="kv-row"><div class="kv-key">定位状态</div><div class="kv-val" id="locStatus">等待定位…</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">定位说明</div><div class="kv-val" id="locReason">未开始</div></div>
+        <div class="divider"></div>
+        <div class="kv-row"><div class="kv-key">本次坐标</div><div class="kv-val" id="coordText">未获取</div></div>
+      </div>
+      <div class="loc-note">
+        📌 位置信息仅用于判断是否存在异地异常扫码行为，辅助风险评估与预警，不会影响个人信用或权益。
+      </div>
+    </div>
+
+    <!-- Debug Details -->
+    <details>
+      <summary>技术详情（调试用）</summary>
+      <pre id="traceData">加载中…</pre>
+    </details>
+
+  </div>
+
+  <div class="footer">
+    <div class="footer-logo">攸县香干区块链溯源平台</div>
+    <div>Youxian Tofu Blockchain Trace · 国密SM2签名 · FISCO BCOS存证</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const officialEl   = document.getElementById('officialStatus');
+  const statusEl     = document.getElementById('scanStatus');
+  const reportEl     = document.getElementById('reportStatus');
+  const locStatusEl  = document.getElementById('locStatus');
+  const locReasonEl  = document.getElementById('locReason');
+  const coordEl      = document.getElementById('coordText');
+  const traceEl      = document.getElementById('traceData');
+  const stampEl      = document.getElementById('stamp');
+  const stampIconEl  = document.getElementById('stampIcon');
+  const stampLabelEl = document.getElementById('stampLabel');
+  const riskLowEl    = document.getElementById('riskLow');
+  const riskMidEl    = document.getElementById('riskMid');
+  const riskHighEl   = document.getElementById('riskHigh');
+  const conclusionEl = document.getElementById('conclusion');
+  const batchVal     = document.getElementById('batchVal');
+  const dateVal      = document.getElementById('dateVal');
+  const ingredientsVal = document.getElementById('ingredientsVal');
+  const standardVal  = document.getElementById('standardVal');
+  const companyVal   = document.getElementById('companyVal');
+  const companyAddrVal = document.getElementById('companyAddrVal');
+  const qsVal        = document.getElementById('qsVal');
+  const qsStatusVal  = document.getElementById('qsStatusVal');
+  const issueVal     = document.getElementById('issueVal');
+
+  const params = new URLSearchParams(window.location.search);
+  const qsId = params.get('qsId') || '';
+  const batchId = params.get('batchId') || '';
+  const companyId = params.get('companyId') || '';
+  const signature = params.get('signature') || '';
+  const payload = params.get('payload') || '';
+  const expectedLatitude = Number(params.get('expectedLatitude'));
+  const expectedLongitude = Number(params.get('expectedLongitude'));
+
+  const setBadge = (el, text, type) => {
+    const cls = type === 'ok' ? 'badge-ok' : (type === 'err' ? 'badge-err' : (type === 'warn' ? 'badge-warn' : 'badge-muted'));
+    const icon = type === 'ok' ? '✓' : (type === 'err' ? '✕' : (type === 'warn' ? '⚠' : '…'));
+    el.innerHTML = `<span class="badge ${cls}">${icon} ${text}</span>`;
+  };
+
+  const setStamp = (mode) => {
+    stampEl.className = 'stamp ' + mode;
+    if (mode === 'official') { stampIconEl.textContent = '✓'; stampLabelEl.textContent = '官方认证'; }
+    else if (mode === 'risk') { stampIconEl.textContent = '✕'; stampLabelEl.textContent = '高风险'; }
+    else if (mode === 'warning') { stampIconEl.textContent = '⚠'; stampLabelEl.textContent = '待确认'; }
+    else { stampIconEl.textContent = '⟳'; stampLabelEl.textContent = '校验中'; }
+  };
+
+  const setRiskLevel = (level, message) => {
+    riskLowEl.className = 'risk-seg';
+    riskMidEl.className = 'risk-seg';
+    riskHighEl.className = 'risk-seg';
+    conclusionEl.className = 'conclusion';
+    if (level === 'low') {
+      riskLowEl.className = 'risk-seg active low';
+      conclusionEl.className = 'conclusion low';
+    } else if (level === 'mid') {
+      riskMidEl.className = 'risk-seg active mid';
+      conclusionEl.className = 'conclusion mid';
+    } else {
+      riskHighEl.className = 'risk-seg active high';
+      conclusionEl.className = 'conclusion high';
+    }
+    conclusionEl.textContent = message;
+  };
+
+  const mapStatus = status => {
+    const s = (status || '').toLowerCase();
+    if (s === 'active') return '正常流通';
+    if (s === 'frozen') return '已冻结';
+    if (s === 'invalid') return '已失效';
+    if (s === 'cancelled') return '已注销';
+    return status || '—';
+  };
+
+  if (!qsId || !signature || !payload) {
+    setBadge(officialEl, '非官方二维码', 'err');
+    setStamp('risk');
+    statusEl.textContent = '二维码参数不完整';
+    traceEl.textContent = '缺少 qsId / signature / payload';
+    reportEl.textContent = '未上报';
+    locStatusEl.textContent = '未定位';
+    locReasonEl.textContent = '缺少必要参数，已停止上报';
+    setRiskLevel('high', '结论：二维码参数缺失，无法判定为官方，请勿继续流通。');
+    return;
+  }
+
+  statusEl.textContent = '扫码参数有效，正在查询溯源…';
+  let traceOk = false;
+  let traceStatus = '';
+  let traceOfficialReason = '';
+
+  fetch('/trace/query/' + encodeURIComponent(qsId))
+    .then(r => r.json())
+    .then(data => {
+      traceEl.textContent = JSON.stringify(data, null, 2);
+      if (data && data.code === 200) {
+        const detail = data.data || {};
+        const qs = detail.qsCode || {};
+        const batch = detail.batch || {};
+        const company = detail.company || {};
+        traceOk = true;
+        traceStatus = (qs.status || '').toLowerCase();
+        traceOfficialReason = traceStatus === 'active'
+          ? '溯源记录存在且状态正常'
+          : ('溯源记录状态为 ' + (traceStatus || 'unknown'));
+
+        qsVal.textContent = qs.qsId || qsId || '—';
+        qsStatusVal.textContent = mapStatus(qs.status);
+        issueVal.textContent = qs.issueTime || '—';
+        batchVal.textContent = batch.batchId || batchId || '—';
+        dateVal.textContent = batch.productionDate || '—';
+        ingredientsVal.textContent = batch.ingredients || '—';
+        standardVal.textContent = batch.productionStandard || '—';
+        companyVal.textContent = company.name || companyId || '—';
+        companyAddrVal.textContent = company.address || '—';
+        statusEl.textContent = '溯源查询成功';
+
+        if (traceStatus === 'active') {
+          setBadge(officialEl, '官方二维码（验签确认中）', 'warn');
+          setStamp('warning');
+          setRiskLevel('mid', '结论：系统找到官方记录，正在进行验签校验，请稍候。');
         } else {
-          riskHighEl.className = 'risk-part active high';
-          conclusionEl.className = 'conclusion high';
+          setBadge(officialEl, '非官方流通码', 'err');
+          setStamp('risk');
+          setRiskLevel('high', `结论：该码状态为「${mapStatus(traceStatus)}」，不建议继续流通。`);
         }
-        conclusionEl.textContent = message;
-      };
-
-      const mapStatus = status => {
-        const s = (status || '').toLowerCase();
-        if (s === 'active') return '正常流通';
-        if (s === 'frozen') return '已冻结';
-        if (s === 'invalid') return '已失效';
-        if (s === 'cancelled') return '已注销';
-        return status || '-';
-      };
-
-      if (!qsId || !signature || !payload) {
-        setBadge(officialEl, '非官方二维码', 'err');
-        heroStampEl.textContent = '校验失败';
-        statusEl.textContent = '二维码参数不完整';
-        statusEl.className = 'err';
-        traceEl.textContent = '缺少 qsId/signature/payload';
-        reportEl.textContent = '未上报';
-        reportEl.className = 'err';
-        locStatusEl.textContent = '未定位';
-        locReasonEl.textContent = '缺少必要参数，已停止上报';
-        setRiskLevel('high', '结论：二维码参数缺失，无法判定为官方，请勿继续流通。');
-        return;
-      }
-
-      statusEl.textContent = '扫码参数有效，正在查询溯源...';
-      let traceOk = false;
-      let traceStatus = '';
-      let traceOfficialReason = '';
-
-      fetch('/trace/query/' + encodeURIComponent(qsId))
-        .then(r => r.json())
-        .then(data => {
-          traceEl.textContent = JSON.stringify(data, null, 2);
-          if (data && data.code === 200) {
-            const detail = data.data || {};
-            const qs = detail.qsCode || {};
-            const batch = detail.batch || {};
-            const company = detail.company || {};
-
-            traceOk = true;
-            traceStatus = (qs.status || '').toLowerCase();
-            traceOfficialReason = traceStatus === 'active'
-              ? '溯源记录存在且状态正常'
-              : ('溯源记录状态为 ' + (traceStatus || 'unknown'));
-
-            qsVal.textContent = qs.qsId || qsId || '-';
-            qsStatusVal.textContent = mapStatus(qs.status);
-            issueVal.textContent = qs.issueTime || '-';
-            batchVal.textContent = batch.batchId || batchId || '-';
-            dateVal.textContent = batch.productionDate || '-';
-            ingredientsVal.textContent = batch.ingredients || '-';
-            standardVal.textContent = batch.productionStandard || '-';
-            companyVal.textContent = company.name || companyId || '-';
-            companyAddrVal.textContent = company.address || '-';
-
-            statusEl.textContent = '溯源查询成功';
-            statusEl.className = 'ok';
-            if (traceStatus === 'active') {
-              setBadge(officialEl, '官方二维码（待验签确认）', 'warn');
-              heroStampEl.textContent = '待最终确认';
-              setRiskLevel('mid', '结论：系统找到官方记录，正在进行验签校验，请稍候。');
-            } else {
-              setBadge(officialEl, '非官方流通码', 'err');
-              heroStampEl.textContent = '异常';
-              setRiskLevel('high', '结论：该码状态为“' + mapStatus(traceStatus) + '”，不建议继续流通。');
-            }
-          } else {
-            statusEl.textContent = '溯源查询失败：' + (data ? data.msg : 'unknown');
-            statusEl.className = 'err';
-            setBadge(officialEl, '非官方或已失效二维码', 'err');
-            heroStampEl.textContent = '异常';
-            setRiskLevel('high', '结论：未查到有效溯源记录，存在非官方风险。');
-          }
-        })
-        .catch(err => {
-          statusEl.textContent = '溯源查询失败';
-          statusEl.className = 'err';
-          setBadge(officialEl, '待确认（查询异常）', 'err');
-          heroStampEl.textContent = '异常';
-          setRiskLevel('high', '结论：查询链路异常，当前无法确认二维码合法性。');
-          traceEl.textContent = String(err);
-        });
-
-      const fpKey = 'trace_device_fp';
-      let fingerprint = localStorage.getItem(fpKey);
-      if (!fingerprint) {
-        fingerprint = 'web-' + Math.random().toString(36).slice(2) + Date.now();
-        localStorage.setItem(fpKey, fingerprint);
-      }
-
-      const ua = navigator.userAgent || 'unknown';
-      const browser = /MicroMessenger/i.test(ua) ? 'WeChat' : 'Browser';
-
-      const postReport = (lat, lng, reasonText) => {
-        const finalReason = reasonText || (lat == null || lng == null ? '未获取经纬度' : '定位成功');
-        locStatusEl.textContent = lat == null || lng == null ? '未拿到GPS' : '已拿到GPS';
-        locStatusEl.className = lat == null || lng == null ? 'err' : 'ok';
-        locReasonEl.textContent = finalReason;
-        coordEl.textContent = lat == null || lng == null ? '未获取' : (lat.toFixed(6) + ', ' + lng.toFixed(6));
-
-        const body = {
-          qsId: qsId,
-          batchId: batchId,
-          companyId: companyId,
-          signature: signature,
-          signaturePayload: payload,
-          ip: '',
-          deviceFingerprint: fingerprint,
-          browser: browser,
-          latitude: lat,
-          longitude: lng,
-          expectedLatitude: Number.isFinite(expectedLatitude) ? expectedLatitude : null,
-          expectedLongitude: Number.isFinite(expectedLongitude) ? expectedLongitude : null,
-          locationSource: lat == null || lng == null ? 'none' : 'gps'
-        };
-
-        fetch('/scan/report', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        })
-          .then(r => r.json())
-          .then(data => {
-            if (data && data.code === 200) {
-              reportEl.textContent = '扫码行为上报成功';
-              reportEl.className = 'ok';
-              if (traceOk && traceStatus === 'active') {
-                setBadge(officialEl, '官方二维码（验签通过，状态正常）', 'ok');
-                heroStampEl.textContent = '官方';
-                setRiskLevel('low', '结论：该二维码为官方有效码，可放心查看溯源信息。');
-              } else if (traceOk) {
-                setBadge(officialEl, '非官方流通码（' + traceOfficialReason + '）', 'err');
-                heroStampEl.textContent = '异常';
-                setRiskLevel('high', '结论：二维码不在正常流通状态，请联系商家或监管方核验。');
-              }
-            } else {
-              reportEl.textContent = '上报失败: ' + (data ? data.msg : 'unknown');
-              reportEl.className = 'err';
-              if (traceOk && traceStatus === 'active') {
-                setBadge(officialEl, '疑似伪造二维码（验签失败）', 'err');
-                heroStampEl.textContent = '高风险';
-                setRiskLevel('high', '结论：记录存在但验签失败，疑似篡改或伪造二维码。');
-              } else {
-                setBadge(officialEl, '非官方二维码', 'err');
-                heroStampEl.textContent = '异常';
-                setRiskLevel('high', '结论：二维码校验失败，请勿继续购买或流通。');
-              }
-            }
-          })
-          .catch(err => {
-            reportEl.textContent = '上报异常: ' + String(err);
-            reportEl.className = 'err';
-            setBadge(officialEl, traceOk ? '官方二维码（上报链路异常）' : '待确认（上报异常）', 'err');
-            heroStampEl.textContent = '待确认';
-            setRiskLevel('mid', '结论：二维码基础记录正常，但上报链路异常，建议稍后重试。');
-          });
-      };
-
-      const geoErrorReason = (err, isRetry) => {
-        if (!err || typeof err.code !== 'number') return '定位失败：未知错误';
-        if (err.code === 1) return '定位失败：你拒绝了位置授权，请在浏览器地址栏开启定位权限';
-        if (err.code === 2) return '定位失败：设备无法获取位置信息，请检查系统定位开关';
-        if (err.code === 3) {
-          return isRetry
-            ? '定位失败：两次定位均超时，请检查网络/GPS后重试'
-            : '定位较慢：正在进行二次精确定位...';
-        }
-        return '定位失败：未知错误代码 ' + err.code;
-      };
-
-      const tryLocateAndReport = () => {
-        locStatusEl.textContent = '快速定位中';
-        locStatusEl.className = 'ok';
-
-        navigator.geolocation.getCurrentPosition(
-          pos => postReport(pos.coords.latitude, pos.coords.longitude, '定位成功（快速定位）'),
-          err => {
-            if (err && err.code === 1) {
-              postReport(null, null, geoErrorReason(err, false));
-              return;
-            }
-
-            locStatusEl.textContent = '精确定位重试中';
-            locStatusEl.className = 'ok';
-            locReasonEl.textContent = geoErrorReason(err, false);
-
-            navigator.geolocation.getCurrentPosition(
-              pos2 => postReport(pos2.coords.latitude, pos2.coords.longitude, '定位成功（精确定位）'),
-              err2 => postReport(null, null, geoErrorReason(err2, true)),
-              { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
-            );
-          },
-          { enableHighAccuracy: false, timeout: 1800, maximumAge: 300000 }
-        );
-      };
-
-      if (navigator.geolocation) {
-        if (!window.isSecureContext) {
-          locStatusEl.textContent = '未拿到GPS';
-          locStatusEl.className = 'err';
-          locReasonEl.textContent = '当前不是安全上下文（需 HTTPS 或 localhost）';
-          postReport(null, null, '无法定位：请在 HTTPS 或 localhost 环境访问');
-          return;
-        }
-        tryLocateAndReport();
       } else {
-        postReport(null, null, '当前浏览器不支持定位功能');
+        statusEl.textContent = '溯源查询失败：' + (data ? data.msg : 'unknown');
+        setBadge(officialEl, '非官方或已失效二维码', 'err');
+        setStamp('risk');
+        setRiskLevel('high', '结论：未查到有效溯源记录，存在非官方风险。');
       }
-    })();
-  </script>
+    })
+    .catch(err => {
+      statusEl.textContent = '溯源查询失败';
+      setBadge(officialEl, '待确认（查询异常）', 'err');
+      setStamp('risk');
+      setRiskLevel('high', '结论：查询链路异常，当前无法确认二维码合法性。');
+      traceEl.textContent = String(err);
+    });
+
+  const fpKey = 'trace_device_fp';
+  let fingerprint = localStorage.getItem(fpKey);
+  if (!fingerprint) {
+    fingerprint = 'web-' + Math.random().toString(36).slice(2) + Date.now();
+    localStorage.setItem(fpKey, fingerprint);
+  }
+  const ua = navigator.userAgent || 'unknown';
+  const browser = /MicroMessenger/i.test(ua) ? 'WeChat' : 'Browser';
+
+  const postReport = (lat, lng, reasonText) => {
+    const finalReason = reasonText || (lat == null ? '未获取经纬度' : '定位成功');
+    locStatusEl.textContent = lat == null ? '未拿到GPS' : '已拿到GPS';
+    locReasonEl.textContent = finalReason;
+    coordEl.textContent = lat == null ? '未获取' : (lat.toFixed(6) + ', ' + lng.toFixed(6));
+
+    const body = {
+      qsId, batchId, companyId, signature,
+      signaturePayload: payload,
+      ip: '',
+      deviceFingerprint: fingerprint,
+      browser,
+      latitude: lat,
+      longitude: lng,
+      expectedLatitude: Number.isFinite(expectedLatitude) ? expectedLatitude : null,
+      expectedLongitude: Number.isFinite(expectedLongitude) ? expectedLongitude : null,
+      locationSource: lat == null ? 'none' : 'gps'
+    };
+
+    fetch('/scan/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.code === 200) {
+          reportEl.textContent = '扫码行为上报成功';
+          if (traceOk && traceStatus === 'active') {
+            setBadge(officialEl, '官方二维码（验签通过）', 'ok');
+            setStamp('official');
+            setRiskLevel('low', '结论：该二维码为官方有效码，可放心查看溯源信息。');
+          } else if (traceOk) {
+            setBadge(officialEl, `非官方流通码（${traceOfficialReason}）`, 'err');
+            setStamp('risk');
+            setRiskLevel('high', '结论：二维码不在正常流通状态，请联系商家或监管方核验。');
+          }
+        } else {
+          reportEl.textContent = '上报失败: ' + (data ? data.msg : 'unknown');
+          if (traceOk && traceStatus === 'active') {
+            setBadge(officialEl, '疑似伪造二维码（验签失败）', 'err');
+            setStamp('risk');
+            setRiskLevel('high', '结论：记录存在但验签失败，疑似篡改或伪造二维码。');
+          } else {
+            setBadge(officialEl, '非官方二维码', 'err');
+            setStamp('risk');
+            setRiskLevel('high', '结论：二维码校验失败，请勿继续购买或流通。');
+          }
+        }
+      })
+      .catch(err => {
+        reportEl.textContent = '上报异常: ' + String(err);
+        setBadge(officialEl, traceOk ? '官方二维码（上报链路异常）' : '待确认（上报异常）', 'warn');
+        setStamp('warning');
+        setRiskLevel('mid', '结论：二维码基础记录正常，但上报链路异常，建议稍后重试。');
+      });
+  };
+
+  const geoErrorReason = (err, isRetry) => {
+    if (!err || typeof err.code !== 'number') return '定位失败：未知错误';
+    if (err.code === 1) return '定位失败：你拒绝了位置授权，请在浏览器地址栏开启定位权限';
+    if (err.code === 2) return '定位失败：设备无法获取位置信息，请检查系统定位开关';
+    if (err.code === 3) return isRetry ? '定位失败：两次定位均超时' : '定位较慢：正在进行二次精确定位…';
+    return '定位失败：未知错误代码 ' + err.code;
+  };
+
+  const tryLocateAndReport = () => {
+    locStatusEl.textContent = '快速定位中…';
+    navigator.geolocation.getCurrentPosition(
+      pos => postReport(pos.coords.latitude, pos.coords.longitude, '定位成功（快速定位）'),
+      err => {
+        if (err && err.code === 1) { postReport(null, null, geoErrorReason(err, false)); return; }
+        locReasonEl.textContent = geoErrorReason(err, false);
+        navigator.geolocation.getCurrentPosition(
+          pos2 => postReport(pos2.coords.latitude, pos2.coords.longitude, '定位成功（精确定位）'),
+          err2 => postReport(null, null, geoErrorReason(err2, true)),
+          { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
+        );
+      },
+      { enableHighAccuracy: false, timeout: 1800, maximumAge: 300000 }
+    );
+  };
+
+  if (navigator.geolocation) {
+    if (!window.isSecureContext) {
+      locStatusEl.textContent = '未拿到GPS';
+      locReasonEl.textContent = '需要 HTTPS 或 localhost 环境';
+      postReport(null, null, '无法定位：请在 HTTPS 或 localhost 环境访问');
+      return;
+    }
+    tryLocateAndReport();
+  } else {
+    postReport(null, null, '当前浏览器不支持定位功能');
+  }
+})();
+</script>
 </body>
 </html>
-
