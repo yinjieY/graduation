@@ -1,22 +1,77 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import AdminDashboardView from '../views/AdminView.vue';
-import CompanyDashboardView from '../views/CompanyView.vue';
-import AdminLoginView from '../views/AdminLoginView.vue';
-import AdminRegisterView from '../views/AdminRegisterView.vue';
-import CompanyLoginView from '../views/CompanyLoginView.vue';
-import CompanyRegisterView from '../views/CompanyRegisterView.vue';
-import ScanView from '../views/ScanView.vue';
 import { getToken } from '../api/session';
 
 const routes = [
   { path: '/', redirect: '/scan' },
-  { path: '/scan', component: ScanView }
-  ,{ path: '/admin/login', component: AdminLoginView }
-  ,{ path: '/admin/register', component: AdminRegisterView }
-  ,{ path: '/admin/dashboard', component: AdminDashboardView, meta: { authRole: 'admin' } }
-  ,{ path: '/company/login', component: CompanyLoginView }
-  ,{ path: '/company/register', component: CompanyRegisterView }
-  ,{ path: '/company/dashboard', component: CompanyDashboardView, meta: { authRole: 'company' } }
+  { 
+    path: '/scan', 
+    component: () => import('../views/ScanView.vue'),
+    meta: { title: '扫码溯源' }
+  },
+  
+  // Admin routes
+  { 
+    path: '/admin/login', 
+    component: () => import('../views/AdminLoginView.vue'),
+    meta: { title: '管理员登录' }
+  },
+  { 
+    path: '/admin/register', 
+    component: () => import('../views/AdminRegisterView.vue'),
+    meta: { title: '管理员注册' }
+  },
+  { 
+    path: '/admin/dashboard', 
+    component: () => import('../views/AdminView.vue'), 
+    meta: { authRole: 'admin', title: '管理员控制台' }
+  },
+  { 
+    path: '/admin/enterprise', 
+    component: () => import('../views/admin/AdminEnterpriseView.vue'), 
+    meta: { authRole: 'admin', title: '企业管理' }
+  },
+  { 
+    path: '/admin/feedback', 
+    component: () => import('../views/admin/AdminFeedbackView.vue'), 
+    meta: { authRole: 'admin', title: '反馈管理' }
+  },
+  { 
+    path: '/admin/message', 
+    component: () => import('../views/admin/AdminMessageView.vue'), 
+    meta: { authRole: 'admin', title: '消息管理' }
+  },
+  
+  // Company routes
+  { 
+    path: '/company/login', 
+    component: () => import('../views/CompanyLoginView.vue'),
+    meta: { title: '商家登录' }
+  },
+  { 
+    path: '/company/register', 
+    component: () => import('../views/CompanyRegisterView.vue'),
+    meta: { title: '商家注册' }
+  },
+  { 
+    path: '/company/dashboard', 
+    component: () => import('../views/CompanyView.vue'), 
+    meta: { authRole: 'company', title: '商家工作台' }
+  },
+  { 
+    path: '/company/auth', 
+    component: () => import('../views/company/CompanyAuthView.vue'), 
+    meta: { authRole: 'company', title: '认证管理' }
+  },
+  { 
+    path: '/company/feedback', 
+    component: () => import('../views/company/CompanyFeedbackView.vue'), 
+    meta: { authRole: 'company', title: '反馈管理' }
+  },
+  { 
+    path: '/company/message', 
+    component: () => import('../views/company/CompanyMessageView.vue'), 
+    meta: { authRole: 'company', title: '消息管理' }
+  }
 ];
 
 const router = createRouter({
@@ -25,6 +80,14 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from, next) => {
+  // 设置页面标题
+  if (to.meta.title) {
+    document.title = `${to.meta.title} - 攸县香干区块链溯源系统`;
+  } else {
+    document.title = '攸县香干区块链溯源系统';
+  }
+  
+  // 权限验证
   const role = to.meta?.authRole;
   if (!role) {
     next();

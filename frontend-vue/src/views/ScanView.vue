@@ -4,24 +4,30 @@
 
     <div class="header">
       <div class="header-ornament"></div>
+      <div class="header-ornament second"></div>
       <div class="brand-line">Youxian Tofu Trace Platform</div>
       <div class="brand-title">攸县香干<br>区块链溯源系统</div>
       <div class="brand-sub">官方溯源 · 区块链存证 · 国密签名防伪</div>
+      <div class="header-badge">
+        <span class="badge-icon">🔒</span>
+        <span class="badge-text">安全验证</span>
+      </div>
     </div>
 
     <div class="stamp-wrap">
-      <div class="stamp" :class="stampConfig.class">
+      <div class="stamp" :class="'stamp-' + stampConfig.class">
         <div class="stamp-inner">
           <div class="stamp-icon" :class="{'spin': stampConfig.class === 'checking'}">{{ stampConfig.icon }}</div>
           <div class="stamp-label">{{ stampConfig.text }}</div>
         </div>
+        <div class="stamp-glow" v-if="stampConfig.class === 'official'"></div>
       </div>
     </div>
 
     <div class="cards">
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">🛡</div>
+          <div class="card-icon shield">🛡</div>
           <div class="card-title">风险等级评估</div>
         </div>
         <div class="risk-bar">
@@ -29,12 +35,17 @@
           <div class="risk-seg" :class="{ 'active mid': riskLevel === 'mid' }">中风险</div>
           <div class="risk-seg" :class="{ 'active high': riskLevel === 'high' }">高风险</div>
         </div>
-        <div class="conclusion" :class="riskLevel">{{ conclusion }}</div>
+        <div class="conclusion" :class="riskLevel">
+          <div class="conclusion-icon" :class="riskLevel">
+            {{ riskLevel === 'low' ? '✓' : riskLevel === 'mid' ? '⚠' : '✕' }}
+          </div>
+          <div class="conclusion-text">{{ conclusion }}</div>
+        </div>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">✅</div>
+          <div class="card-icon check">✅</div>
           <div class="card-title">校验结果</div>
         </div>
         <div class="kv">
@@ -59,7 +70,7 @@
 
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">📦</div>
+          <div class="card-icon package">📦</div>
           <div class="card-title">产品批次信息</div>
         </div>
         <div class="kv">
@@ -75,7 +86,7 @@
 
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">🏭</div>
+          <div class="card-icon factory">🏭</div>
           <div class="card-title">企业与二维码信息</div>
         </div>
         <div class="kv">
@@ -93,7 +104,7 @@
 
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">📍</div>
+          <div class="card-icon location">📍</div>
           <div class="card-title">定位信息</div>
         </div>
         <div class="kv">
@@ -110,7 +121,7 @@
 
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">💬</div>
+          <div class="card-icon feedback">💬</div>
           <div class="card-title">质量反馈与维权</div>
         </div>
         <div class="feedback-form">
@@ -123,11 +134,15 @@
           <textarea v-model="feedbackForm.description" placeholder="请详细描述您遇到的问题（可选，200字内）" class="nice-input"></textarea>
           <div class="file-upload">
             <span class="file-label">上传凭证照片：</span>
-            <input type="file" accept="image/*" @change="onFileChange" />
+            <div class="file-input-wrapper">
+              <input type="file" accept="image/*" @change="onFileChange" />
+              <span class="file-input-text">{{ feedbackForm.image ? feedbackForm.image.name : '选择文件' }}</span>
+            </div>
           </div>
 
           <div class="btn-group">
             <button class="btn-primary" :disabled="loading" @click="submitFeedbackForm">
+              <span v-if="loading" class="loading-spinner"></span>
               {{ loading ? '提交中...' : '提交反馈' }}
             </button>
           </div>
@@ -138,7 +153,10 @@
             <input v-model="feedbackQueryId" placeholder="输入反馈编号查询进度" class="nice-input small" />
             <button class="btn-secondary" :disabled="loading" @click="queryStatus">查询</button>
           </div>
-          <div v-if="feedbackId" class="feedback-id-hint">您的反馈编号：<strong>{{ feedbackId }}</strong> (请妥善保存)</div>
+          <div v-if="feedbackId" class="feedback-id-hint">
+            <span class="hint-icon">📋</span>
+            您的反馈编号：<strong>{{ feedbackId }}</strong> (请妥善保存)
+          </div>
         </div>
       </div>
 
@@ -151,7 +169,23 @@
 
     <div class="footer">
       <div class="footer-logo">攸县香干区块链溯源平台</div>
-      <div>Youxian Tofu Blockchain Trace · 国密SM2签名 · FISCO BCOS存证</div>
+      <div class="footer-info">
+        <span class="footer-item">
+          <span class="footer-icon">🔐</span>
+          国密SM2签名
+        </span>
+        <span class="footer-divider">|</span>
+        <span class="footer-item">
+          <span class="footer-icon">📁</span>
+          FISCO BCOS存证
+        </span>
+        <span class="footer-divider">|</span>
+        <span class="footer-item">
+          <span class="footer-icon">🌐</span>
+          区块链技术
+        </span>
+      </div>
+      <div class="footer-copyright">© 2024 攸县香干区块链溯源系统</div>
     </div>
   </div>
 </template>
@@ -475,6 +509,12 @@ onMounted(async () => {
   width: 160px; height: 160px;
   border: 2px solid rgba(201,152,58,0.2);
   border-radius: 50%;
+  animation: float 6s ease-in-out infinite;
+}
+.header-ornament.second {
+  top: 60px; left: -30px;
+  width: 120px; height: 120px;
+  animation: float 8s ease-in-out infinite reverse;
 }
 .header-ornament::before {
   content: '';
@@ -483,12 +523,32 @@ onMounted(async () => {
   border: 1px solid rgba(201,152,58,0.15);
   border-radius: 50%;
 }
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  margin-top: 12px;
+  animation: slideInRight 0.6s ease-out;
+}
+.badge-icon {
+  font-size: 14px;
+}
+.badge-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
 .brand-line {
   font-size: 11px;
   letter-spacing: 0.2em;
   color: rgba(255,255,255,0.6);
   text-transform: uppercase;
   margin-bottom: 10px;
+  animation: slideInLeft 0.6s ease-out;
 }
 .brand-title {
   font-family: 'ZCOOL XiaoWei', serif;
@@ -496,11 +556,13 @@ onMounted(async () => {
   color: #fff;
   line-height: 1.3;
   margin-bottom: 6px;
+  animation: slideInLeft 0.6s ease-out 0.1s both;
 }
 .brand-sub {
   font-size: 12px;
   color: rgba(255,255,255,0.55);
   letter-spacing: 0.05em;
+  animation: slideInLeft 0.6s ease-out 0.2s both;
 }
 
 /* 印章 */
@@ -511,6 +573,7 @@ onMounted(async () => {
   margin-bottom: 20px;
   position: relative;
   z-index: 2;
+  animation: slideInUp 0.8s ease-out;
 }
 .stamp {
   width: 88px; height: 88px;
@@ -535,17 +598,27 @@ onMounted(async () => {
   flex-direction: column;
   gap: 2px;
   transition: all 0.5s ease;
+  position: relative;
+  z-index: 2;
 }
-.stamp.checking { color: var(--muted); }
-.stamp.checking .stamp-inner { border-color: var(--muted); }
-.stamp.official { color: var(--jade); animation: pulse-ok 2.5s ease-in-out infinite; }
-.stamp.official .stamp-inner { border-color: var(--jade); background: var(--ok-bg); }
-.stamp.risk { color: var(--err-text); }
-.stamp.risk .stamp-inner { border-color: var(--err-text); background: var(--err-bg); }
-.stamp.warning { color: var(--warn-text); }
-.stamp.warning .stamp-inner { border-color: var(--gold); background: var(--warn-bg); }
+.stamp-checking { color: var(--muted); }
+.stamp-checking .stamp-inner { border-color: var(--muted); }
+.stamp-official { color: var(--jade); animation: pulse-ok 2.5s ease-in-out infinite; }
+.stamp-official .stamp-inner { border-color: var(--jade); background: var(--ok-bg); }
+.stamp-risk { color: var(--err-text); }
+.stamp-risk .stamp-inner { border-color: var(--err-text); background: var(--err-bg); }
+.stamp-warning { color: var(--warn-text); }
+.stamp-warning .stamp-inner { border-color: var(--gold); background: var(--warn-bg); }
 .stamp-icon { font-size: 28px; line-height: 1; }
 .stamp-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; }
+.stamp-glow {
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(circle, rgba(14,107,82,0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: glow 2s ease-in-out infinite;
+  z-index: 1;
+}
 
 @keyframes pulse-ok {
   0%, 100% { box-shadow: var(--shadow-lg), 0 0 0 4px var(--cream); }
@@ -554,6 +627,26 @@ onMounted(async () => {
 @keyframes spin-check {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(5deg); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
 }
 .spin { animation: spin-check 1.2s linear infinite; font-size: 22px; display: inline-block; }
 
@@ -571,6 +664,11 @@ onMounted(async () => {
   margin-bottom: 12px;
   box-shadow: var(--shadow);
   animation: fadeUp 0.5s ease both;
+  transition: all 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(14,107,82,0.15);
 }
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(14px); }
@@ -594,11 +692,17 @@ onMounted(async () => {
 .card-icon {
   width: 32px; height: 32px;
   border-radius: 8px;
-  background: var(--ok-bg);
   display: flex; align-items: center; justify-content: center;
   font-size: 16px;
   flex-shrink: 0;
+  transition: all 0.3s ease;
 }
+.card-icon.shield { background: var(--ok-bg); color: var(--ok-text); }
+.card-icon.check { background: #dbeafe; color: #1d4ed8; }
+.card-icon.package { background: #fef3c7; color: #d97706; }
+.card-icon.factory { background: #f0f9ff; color: #0284c7; }
+.card-icon.location { background: #ecfccb; color: #65a30d; }
+.card-icon.feedback { background: #fce7f3; color: #be185d; }
 .card-title {
   font-family: 'ZCOOL XiaoWei', serif;
   font-size: 16px;
@@ -611,14 +715,42 @@ onMounted(async () => {
   padding: 14px 16px;
   font-size: 13px;
   line-height: 1.6;
-  border-left: 3px solid var(--muted);
   background: #f7f7f7;
   color: var(--muted);
   transition: all 0.4s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
-.conclusion.low { background: var(--ok-bg); border-left-color: var(--jade); color: var(--ok-text); }
-.conclusion.mid { background: var(--warn-bg); border-left-color: var(--gold); color: var(--warn-text); }
-.conclusion.high { background: var(--err-bg); border-left-color: #d62626; color: var(--err-text); }
+.conclusion.low { background: var(--ok-bg); color: var(--ok-text); }
+.conclusion.mid { background: var(--warn-bg); color: var(--warn-text); }
+.conclusion.high { background: var(--err-bg); color: var(--err-text); }
+.conclusion-icon {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.conclusion-icon.low {
+  background: var(--ok-text);
+  color: white;
+}
+.conclusion-icon.mid {
+  background: var(--warn-text);
+  color: white;
+}
+.conclusion-icon.high {
+  background: var(--err-text);
+  color: white;
+}
+.conclusion-text {
+  flex: 1;
+}
 
 .risk-bar {
   display: flex;
@@ -636,6 +768,8 @@ onMounted(async () => {
   background: #f2f3f2;
   color: #aaa;
   transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
 }
 .risk-seg.active.low  { background: var(--ok-bg); color: var(--ok-text); }
 .risk-seg.active.mid  { background: var(--warn-bg); color: var(--warn-text); }
@@ -646,6 +780,12 @@ onMounted(async () => {
   font-size: 8px;
   margin-top: 2px;
   opacity: 0.6;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
 }
 
 /* KV 布局 */
@@ -656,6 +796,13 @@ onMounted(async () => {
   gap: 8px;
   align-items: start;
   font-size: 13.5px;
+  transition: all 0.3s ease;
+}
+.kv-row:hover {
+  background: rgba(14,107,82,0.02);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin: -4px -8px;
 }
 .kv-key {
   color: var(--muted);
@@ -674,6 +821,8 @@ onMounted(async () => {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
+  transition: all 0.3s ease;
+  animation: slideInUp 0.4s ease-out;
 }
 .badge-ok   { background: var(--ok-bg);   color: var(--ok-text); }
 .badge-err  { background: var(--err-bg);  color: var(--err-text); }
@@ -695,6 +844,12 @@ onMounted(async () => {
   border-radius: 8px;
   border: 1px solid var(--border);
   margin-top: 12px;
+  animation: fadeIn 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Feedback Form Styles */
@@ -713,10 +868,12 @@ onMounted(async () => {
   color: var(--ink);
   outline: none;
   font-family: inherit;
-  transition: border-color 0.3s;
+  transition: all 0.3s ease;
 }
 .nice-input:focus {
   border-color: var(--jade);
+  box-shadow: 0 0 0 3px rgba(14,107,82,0.1);
+  transform: translateY(-1px);
 }
 textarea.nice-input {
   resize: vertical;
@@ -725,6 +882,36 @@ textarea.nice-input {
 .file-upload {
   font-size: 12px;
   color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.file-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+.file-input-wrapper input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+.file-input-text {
+  display: block;
+  padding: 10px 14px;
+  border: 1px solid rgba(14,107,82,0.2);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--cream);
+  color: var(--ink);
+  transition: all 0.3s ease;
+}
+.file-input-wrapper:hover .file-input-text {
+  border-color: var(--jade);
 }
 .btn-group {
   margin-top: 4px;
@@ -740,10 +927,37 @@ textarea.nice-input {
   font-weight: bold;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(14,107,82,0.2);
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
-.btn-primary:hover:not(:disabled) { background: var(--jade-light); }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-primary:hover:not(:disabled) {
+  background: var(--jade-light);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(14,107,82,0.3);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 
 .query-box {
   display: flex;
@@ -758,10 +972,30 @@ textarea.nice-input {
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.btn-secondary:hover:not(:disabled) { background: var(--ok-bg); }
-.feedback-id-hint { font-size: 12px; color: var(--jade); margin-top: 4px;}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--ok-bg);
+  transform: translateY(-1px);
+}
+.feedback-id-hint {
+  font-size: 12px;
+  color: var(--jade);
+  margin-top: 4px;
+  padding: 8px 12px;
+  background: var(--ok-bg);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: slideInUp 0.4s ease-out;
+}
+.hint-icon {
+  font-size: 14px;
+}
 
 /* Debug Details */
 .debug-details {
@@ -770,6 +1004,10 @@ textarea.nice-input {
   overflow: hidden;
   border: 1px solid var(--border);
   background: #fff;
+  transition: all 0.3s ease;
+}
+.debug-details:hover {
+  box-shadow: var(--shadow);
 }
 .debug-details summary {
   padding: 14px 18px;
@@ -777,6 +1015,10 @@ textarea.nice-input {
   font-size: 13px;
   color: var(--muted);
   user-select: none;
+  transition: all 0.3s ease;
+}
+.debug-details summary:hover {
+  background: rgba(14,107,82,0.02);
 }
 .debug-details pre {
   white-space: pre-wrap;
@@ -788,6 +1030,7 @@ textarea.nice-input {
   line-height: 1.6;
   border-top: 1px solid rgba(255,255,255,0.08);
   margin: 0;
+  transition: all 0.3s ease;
 }
 
 .footer {
@@ -796,12 +1039,63 @@ textarea.nice-input {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.8;
+  animation: fadeIn 0.8s ease-out 0.5s both;
 }
 .footer-logo {
   font-family: 'ZCOOL XiaoWei', serif;
   font-size: 13px;
   color: var(--jade);
   letter-spacing: 0.05em;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.footer-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+.footer-icon {
+  font-size: 12px;
+}
+.footer-divider {
+  color: rgba(14,107,82,0.3);
+  font-size: 8px;
+}
+.footer-copyright {
+  font-size: 10px;
+  color: rgba(107, 114, 128, 0.6);
+  margin-top: 4px;
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 24px 16px 56px;
+  }
+  
+  .brand-title {
+    font-size: 22px;
+  }
+  
+  .card {
+    padding: 16px;
+  }
+  
+  .footer-info {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .footer-divider {
+    display: none;
+  }
 }
 </style>
