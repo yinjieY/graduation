@@ -60,6 +60,11 @@ const navItems = computed(() => {
   } else {
     return [
       { path: '/company/dashboard', label: '工作台', icon: '📊' },
+      { path: '/company/info', label: '企业信息', icon: '🏭' },
+      { path: '/company/batch', label: '生产批次', icon: '📦' },
+      { path: '/company/qrcode', label: '溯源码管理', icon: '📱' },
+      { path: '/company/alert', label: '预警中心', icon: '⚠' },
+      { path: '/company/stats', label: '数据统计', icon: '📈' },
       { path: '/company/auth', label: '资质认证', icon: '📄' },
       { path: '/company/feedback', label: '反馈管理', icon: '💬' },
       { path: '/company/message', label: '消息中心', icon: '📋' }

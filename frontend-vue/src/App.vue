@@ -23,11 +23,34 @@
     <main class="page container">
       <RouterView />
     </main>
+    <!-- 全局通知 -->
+    <div v-for="notification in notifications" :key="notification.id">
+      <Notification
+        :message="notification.message"
+        :type="notification.type"
+        :duration="notification.duration"
+        @close="removeNotification(notification.id)"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
+import { provide } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
+import { useNotification } from './composables/useNotification';
+import Notification from './components/Notification.vue';
+
+const { notifications, showNotification, showSuccess, showError, showWarning, showInfo, removeNotification } = useNotification();
+
+// 提供通知功能给全局使用
+provide('notification', {
+  showNotification,
+  showSuccess,
+  showError,
+  showWarning,
+  showInfo
+});
 </script>
 
 <style scoped>

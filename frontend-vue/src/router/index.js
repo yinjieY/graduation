@@ -72,10 +72,36 @@ const routes = [
     component: () => import('../views/company/CompanyFeedbackView.vue'), 
     meta: { authRole: 'company', title: '反馈管理' }
   },
-  { 
+  {
     path: '/company/message', 
     component: () => import('../views/company/CompanyMessageView.vue'), 
     meta: { authRole: 'company', title: '消息管理' }
+  },
+  // 新增商家功能路由
+  {
+    path: '/company/info',
+    component: () => import('../views/company/CompanyInfoView.vue'),
+    meta: { authRole: 'company', title: '企业信息管理' }
+  },
+  {
+    path: '/company/batch',
+    component: () => import('../views/company/CompanyBatchView.vue'),
+    meta: { authRole: 'company', title: '生产批次管理' }
+  },
+  {
+    path: '/company/qrcode',
+    component: () => import('../views/company/CompanyQrCodeView.vue'),
+    meta: { authRole: 'company', title: '溯源码管理' }
+  },
+  {
+    path: '/company/alert',
+    component: () => import('../views/company/CompanyAlertView.vue'),
+    meta: { authRole: 'company', title: '预警中心' }
+  },
+  {
+    path: '/company/stats',
+    component: () => import('../views/company/CompanyStatsView.vue'),
+    meta: { authRole: 'company', title: '数据统计分析' }
   }
 ];
 
