@@ -90,13 +90,13 @@ onMounted(() => {
 /* 侧边栏容器 */
 .sidebar {
   width: 240px;
-  height: 100vh;
+  height: calc(100vh - 64px); /* 修改：高度减去顶部条的 64px */
   background: #1e293b;
   color: white;
   transition: all 0.3s ease;
   position: fixed;
   left: 0;
-  top: 0;
+  top: 64px; /* 修改：起点设为 64px，正好贴在顶部条下方 */
   z-index: 1000;
   display: flex;
   flex-direction: column;

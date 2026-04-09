@@ -63,7 +63,6 @@ import { RouterLink, RouterView } from 'vue-router';
 
 .brand-icon {
   font-size: 24px;
-  animation: spin 3s linear infinite;
 }
 
 .brand-text {

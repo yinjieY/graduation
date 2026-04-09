@@ -235,7 +235,6 @@ async function onLogin() {
 
 .logo-icon {
   font-size: 24px;
-  animation: spin 3s linear infinite;
 }
 
 .logo-text {
@@ -292,6 +291,7 @@ async function onLogin() {
   font-size: 16px;
   color: #94a3b8;
   transition: all 0.3s ease;
+  z-index: 1; /* 新增这一行 */
 }
 
 .form-group input {
@@ -312,7 +312,8 @@ async function onLogin() {
   transform: translateY(-1px);
 }
 
-.form-group input:focus + .input-icon {
+/* 在 AdminLoginView.vue 中改为： */
+.form-group:focus-within .input-icon {
   color: #3b82f6;
   transform: scale(1.1);
 }
