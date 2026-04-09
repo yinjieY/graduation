@@ -1,6 +1,6 @@
 const tokenKeyMap = {
-  admin: 'adminToken',
-  company: 'companyToken'
+  admin: 'admin_token',
+  company: 'company_token'
 };
 
 export function normalizeBearerToken(token) {

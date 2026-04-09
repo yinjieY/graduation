@@ -36,6 +36,38 @@ async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
   }
 }
 
+// 获取token的辅助函数
+const getToken = () => {
+  // 尝试获取admin或company的token
+  return localStorage.getItem('admin_token') || localStorage.getItem('company_token');
+};
+
+// 清除所有token
+const clearAllTokens = () => {
+  localStorage.removeItem('admin_token');
+  localStorage.removeItem('company_token');
+};
+
+// 跳转到登录页
+const redirectToLogin = () => {
+  // 动态导入router，避免循环依赖
+  import('vue-router').then(({ createRouter, createWebHistory }) => {
+    const router = createRouter({
+      history: createWebHistory(),
+      routes: []
+    });
+    
+    // 根据当前路径判断跳转到哪个登录页
+    if (window.location.pathname.includes('/admin/')) {
+      window.location.href = '/admin/login';
+    } else if (window.location.pathname.includes('/company/')) {
+      window.location.href = '/company/login';
+    } else {
+      window.location.href = '/admin/login';
+    }
+  });
+};
+
 export async function apiFetch(url, options = {}) {
   // 构建缓存键
   const cacheKey = getCacheKey(url, options);
@@ -51,12 +83,35 @@ export async function apiFetch(url, options = {}) {
     return pendingRequests.get(cacheKey);
   }
   
+  // 获取token并添加到请求头
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers
+  };
+  
+  if (token) {
+    headers['Authorization'] = normalizeBearerToken(token);
+  }
+  
   // 创建请求Promise
   const requestPromise = (async () => {
     try {
-      const resp = await fetchWithRetry(url, options);
+      const resp = await fetchWithRetry(url, { ...options, headers });
       const contentType = resp.headers.get('content-type') || '';
       const data = contentType.includes('application/json') ? await resp.json() : await resp.text();
+      
+      // 处理401未授权
+      if (resp.status === 401) {
+        clearAllTokens();
+        redirectToLogin();
+        throw new Error('登录已过期，请重新登录');
+      }
+
+      // 处理403禁止访问
+      if (resp.status === 403) {
+        throw new Error('权限不足，无法访问该资源');
+      }
       
       if (!resp.ok) {
         const message = (data && typeof data === 'object' ? data.msg : '') || `请求失败(${resp.status})`;

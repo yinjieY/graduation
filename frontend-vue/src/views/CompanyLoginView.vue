@@ -87,11 +87,10 @@
 <script setup>
 import { reactive, ref } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
-import { login } from '../api/auth';
-import { setToken } from '../api/session';
+import { useAuth } from '../composables/useAuth';
 
 const router = useRouter();
-const loading = ref(false);
+const { handleLogin, loading } = useAuth();
 const notice = ref('');
 const noticeType = ref('info');
 const form = reactive({ account: '', password: '' });
@@ -145,22 +144,9 @@ async function onLogin() {
     return;
   }
   
-  loading.value = true;
-  try {
-    const res = await login(form.account, form.password);
-    if (res?.data) {
-      setToken('company', res.data);
-      setNotice('登录成功，正在进入工作台...', 'success');
-      setTimeout(() => {
-        router.push('/company/dashboard');
-      }, 1000);
-      return;
-    }
+  const success = await handleLogin(form.account, form.password, 'company');
+  if (!success) {
     setNotice('登录失败，请检查账号密码', 'error');
-  } catch (error) {
-    setNotice(error?.message || '登录失败，请稍后重试', 'error');
-  } finally {
-    loading.value = false;
   }
 }
 </script>
