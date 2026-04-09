@@ -1,11 +1,11 @@
 <template>
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand">QSGuard 香干溯源平台</div>
+      <div class="brand">攸县香干溯源平台</div>
       <nav class="tabs">
-        <RouterLink to="/admin">管理员</RouterLink>
-        <RouterLink to="/company">商家</RouterLink>
-        <RouterLink to="/scan">扫码页</RouterLink>
+        <RouterLink to="/scan">扫码页面</RouterLink>
+        <RouterLink to="/admin/login">管理员入口</RouterLink>
+        <RouterLink to="/company/login">商家入口</RouterLink>
       </nav>
     </header>
     <main class="page container">

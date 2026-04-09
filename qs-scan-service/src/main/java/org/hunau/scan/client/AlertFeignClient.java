@@ -16,6 +16,9 @@ public interface AlertFeignClient {
 
     @PostMapping("/alert/evaluate")
     R<?> evaluate(@RequestBody Map<String, Object> body);
+
+    @PostMapping("/alert/messages/feedback")
+    R<?> createFeedbackMessage(@RequestBody Map<String, Object> body);
 }
 
 

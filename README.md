@@ -240,7 +240,8 @@
 | 方法 | 路径 | 主要参数 | 作用 | 权限 |
 | --- | --- | --- | --- | --- |
 | POST | `/alert/evaluate` | Body:`qsId`,`companyId`,`scanCount1h`,`deviceCount1d`,`ipCount1h`,`timeVariance`,`locationVariance`,`newDevice?`,`riskDevice?`,`distanceKm?`,`city?`,`province?`（兼容旧字段`scanCount/deviceCount/ipCount`） | 规则引擎 + AI 双通道风险评估并生成预警/联动动作 | 登录可访问 |
-| GET | `/alert/list` | 无 | 预警记录列表 | 登录可访问 |
+| GET | `/alert/list` 或 `/alert/messages` | 无 | 系统消息列表（ADMIN看全量，COMPANY仅看本企业） | 登录可访问 |
+| POST | `/alert/messages/feedback` | Body:`feedbackId`,`qsId`,`companyId`,`feedbackType`,`complaintRate`,`riskLevel(HIGH/MEDIUM)` | 消费者反馈投诉率触发系统消息（即使未命中AI/规则也可通知） | 内部调用 |
 | GET | `/alert/rules` | 无 | 查询规则配置（来自`alert_rule`） | 登录可访问 |
 | PUT | `/alert/rules/{ruleId}/threshold` | Path:`ruleId` + Body:`threshold`（如`1h>=8`） | 动态修改阈值并立即热更新Drools | 登录可访问 |
 | PUT | `/alert/rules/{ruleId}/status` | Path:`ruleId` + Body:`status`（0禁用/1启用） | 启停规则并立即热更新Drools | 登录可访问 |

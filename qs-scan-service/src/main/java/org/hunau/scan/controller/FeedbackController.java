@@ -3,12 +3,14 @@ package org.hunau.scan.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import org.hunau.common.R;
 import org.hunau.common.util.JwtUtil;
+import org.hunau.scan.model.FeedbackStatusUpdateRequest;
 import org.hunau.scan.service.FeedbackService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -35,7 +37,8 @@ public class FeedbackController {
         String fp = (deviceFingerprint == null || deviceFingerprint.isBlank())
                 ? fallbackFingerprint(request)
                 : deviceFingerprint.trim();
-        return feedbackService.submit(qsId, feedbackType, fp, region, description, latitude, longitude, image);
+        String submitterIp = request.getRemoteAddr();
+        return feedbackService.submit(qsId, feedbackType, fp, submitterIp, region, description, latitude, longitude, image);
     }
 
     @GetMapping("/status/{feedbackId}")
@@ -46,25 +49,34 @@ public class FeedbackController {
     @GetMapping("/list")
     public R<?> list(@RequestHeader(value = "Authorization", required = false) String authorization,
                      Authentication authentication) {
-        String role = "";
-        if (authentication != null) {
-            for (GrantedAuthority authority : authentication.getAuthorities()) {
-                String item = authority.getAuthority();
-                if (item != null && item.startsWith("ROLE_")) {
-                    role = item.substring(5);
-                    break;
-                }
-            }
-        }
-        String companyId = "";
-        if (authorization != null && authorization.startsWith("Bearer ")) {
-            String token = authorization.substring(7);
-            if (JwtUtil.validate(token)) {
-                String claim = JwtUtil.getCompanyId(token);
-                companyId = claim == null ? "" : claim.trim();
-            }
-        }
+        String role = resolveRole(authentication);
+        String companyId = resolveCompanyId(authorization);
         return feedbackService.list(role, companyId);
+    }
+
+    @GetMapping("/detail/{feedbackId}")
+    public R<?> detail(@PathVariable String feedbackId,
+                       @RequestHeader(value = "Authorization", required = false) String authorization,
+                       Authentication authentication) {
+        return feedbackService.detail(feedbackId, resolveRole(authentication), resolveCompanyId(authorization));
+    }
+
+    @PutMapping("/status/{feedbackId}")
+    public R<?> updateStatus(@PathVariable String feedbackId,
+                             @RequestBody FeedbackStatusUpdateRequest request,
+                             @RequestHeader(value = "Authorization", required = false) String authorization) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String role = resolveRole(authentication);
+        String operator = authentication == null ? "system" : String.valueOf(authentication.getPrincipal());
+        String companyId = resolveCompanyId(authorization);
+        return feedbackService.updateStatus(
+                feedbackId,
+                request == null ? null : request.getStatus(),
+                request == null ? null : request.getHandleNote(),
+                role,
+                operator,
+                companyId
+        );
     }
 
     @GetMapping(value = "/image/{fileName}", produces = MediaType.IMAGE_PNG_VALUE)
@@ -80,6 +92,31 @@ public class FeedbackController {
         String ua = request.getHeader("User-Agent");
         String ip = request.getRemoteAddr();
         return "anon-" + Math.abs((String.valueOf(ua) + "|" + ip).hashCode());
+    }
+
+    private String resolveRole(Authentication authentication) {
+        if (authentication == null) {
+            return "";
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            String item = authority.getAuthority();
+            if (item != null && item.startsWith("ROLE_")) {
+                return item.substring(5);
+            }
+        }
+        return "";
+    }
+
+    private String resolveCompanyId(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return "";
+        }
+        String token = authorization.substring(7);
+        if (!JwtUtil.validate(token)) {
+            return "";
+        }
+        String claim = JwtUtil.getCompanyId(token);
+        return claim == null ? "" : claim.trim();
     }
 }
 

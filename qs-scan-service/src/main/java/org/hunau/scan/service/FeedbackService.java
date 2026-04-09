@@ -8,10 +8,10 @@ import org.hunau.scan.client.TraceFeignClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.annotation.PostConstruct;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -59,9 +59,46 @@ public class FeedbackService {
         this.blockFeignClient = blockFeignClient;
     }
 
+    @PostConstruct
+    public void ensureFeedbackSchema() {
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS feedback_record ("
+                + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
+                + "feedback_id VARCHAR(40) NOT NULL,"
+                + "qs_id VARCHAR(32) NOT NULL,"
+                + "batch_id VARCHAR(32) NULL,"
+                + "company_id VARCHAR(32) NULL,"
+                + "device_fingerprint VARCHAR(64) NOT NULL,"
+                + "submitter_ip VARCHAR(64) NULL,"
+                + "feedback_type VARCHAR(20) NOT NULL,"
+                + "description VARCHAR(200) NULL,"
+                + "region VARCHAR(100) NOT NULL,"
+                + "lat DOUBLE NULL,"
+                + "lng DOUBLE NULL,"
+                + "image_file VARCHAR(128) NOT NULL,"
+                + "qr_status VARCHAR(20) NULL,"
+                + "complaint_rate DECIMAL(8,4) NOT NULL DEFAULT 0,"
+                + "risk_level VARCHAR(16) NOT NULL DEFAULT 'NONE',"
+                + "status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED',"
+                + "handle_user VARCHAR(64) NULL,"
+                + "handle_note VARCHAR(255) NULL,"
+                + "handle_time DATETIME NULL,"
+                + "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                + "UNIQUE KEY uk_feedback_id (feedback_id),"
+                + "UNIQUE KEY uk_qs_device_feedback (qs_id, device_fingerprint),"
+                + "KEY idx_feedback_qs_time (qs_id, created_at),"
+                + "KEY idx_feedback_company (company_id)"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        addColumnIfMissing("submitter_ip", "ALTER TABLE feedback_record ADD COLUMN submitter_ip VARCHAR(64) NULL AFTER device_fingerprint");
+        addColumnIfMissing("handle_user", "ALTER TABLE feedback_record ADD COLUMN handle_user VARCHAR(64) NULL AFTER status");
+        addColumnIfMissing("handle_note", "ALTER TABLE feedback_record ADD COLUMN handle_note VARCHAR(255) NULL AFTER handle_user");
+        addColumnIfMissing("handle_time", "ALTER TABLE feedback_record ADD COLUMN handle_time DATETIME NULL AFTER handle_note");
+    }
+
     public R<Map<String, Object>> submit(String qsId,
                                          String feedbackType,
                                          String deviceFingerprint,
+                                         String submitterIp,
                                          String region,
                                          String description,
                                          Double latitude,
@@ -81,12 +118,12 @@ public class FeedbackService {
         }
 
         Integer existed = jdbcTemplate.queryForObject(
-                "SELECT COUNT(1) FROM yx_scan_anomaly.feedback_record WHERE qs_id=? AND device_fingerprint=?",
+                "SELECT COUNT(1) FROM feedback_record WHERE qs_id=? AND device_fingerprint=?",
                 Integer.class,
                 qsId.trim(),
                 deviceFingerprint.trim()
         );
-        if (existed != null && existed > 0) {
+        if (existed > 0) {
             return R.fail("同一设备对该二维码仅允许提交一次反馈");
         }
 
@@ -120,12 +157,13 @@ public class FeedbackService {
         String riskLevel = decideRiskLevel(complaintRate);
 
         jdbcTemplate.update(
-                "INSERT INTO yx_scan_anomaly.feedback_record(feedback_id,qs_id,batch_id,company_id,device_fingerprint,feedback_type,description,region,lat,lng,image_file,qr_status,complaint_rate,risk_level,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())",
+                "INSERT INTO feedback_record(feedback_id,qs_id,batch_id,company_id,device_fingerprint,submitter_ip,feedback_type,description,region,lat,lng,image_file,qr_status,complaint_rate,risk_level,status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())",
                 feedbackId,
                 qsId.trim(),
                 batchId,
                 companyId,
                 deviceFingerprint.trim(),
+                fitLength(submitterIp, 64),
                 normalizedType,
                 fitLength(description, 200),
                 fitLength(region, 100),
@@ -139,7 +177,7 @@ public class FeedbackService {
         );
 
         boolean proofSuccess = saveFeedbackProof(feedbackId, qsId.trim(), normalizedType, companyId);
-        boolean alertTriggered = triggerFeedbackAlertIfNeeded(qsId.trim(), companyId, riskLevel);
+        boolean alertTriggered = triggerFeedbackAlertIfNeeded(feedbackId, qsId.trim(), companyId, normalizedType, complaintRate, riskLevel);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("feedbackId", feedbackId);
@@ -158,7 +196,7 @@ public class FeedbackService {
     public R<Map<String, Object>> status(String feedbackId) {
         AssertUtil.notEmpty(feedbackId, "feedbackId不能为空");
         Map<String, Object> row = jdbcTemplate.query(
-                "SELECT feedback_id,qs_id,company_id,feedback_type,description,region,qr_status,complaint_rate,risk_level,status,created_at FROM yx_scan_anomaly.feedback_record WHERE feedback_id=?",
+                "SELECT feedback_id,qs_id,company_id,feedback_type,description,region,submitter_ip,qr_status,complaint_rate,risk_level,status,handle_user,handle_note,handle_time,created_at FROM feedback_record WHERE feedback_id=?",
                 rs -> {
                     if (!rs.next()) {
                         return null;
@@ -170,9 +208,13 @@ public class FeedbackService {
                     item.put("feedbackType", rs.getString("feedback_type"));
                     item.put("description", rs.getString("description"));
                     item.put("region", rs.getString("region"));
+                    item.put("submitterIp", rs.getString("submitter_ip"));
                     item.put("complaintRate", rs.getDouble("complaint_rate"));
                     item.put("riskLevel", rs.getString("risk_level"));
                     item.put("feedbackStatus", rs.getString("status"));
+                    item.put("handleUser", rs.getString("handle_user"));
+                    item.put("handleNote", rs.getString("handle_note"));
+                    item.put("handleTime", rs.getTimestamp("handle_time") == null ? null : rs.getTimestamp("handle_time").toLocalDateTime());
                     item.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
                     return item;
                 },
@@ -199,17 +241,112 @@ public class FeedbackService {
         List<Map<String, Object>> rows;
         if ("COMPANY".equals(normalizedRole) && !normalizedCompany.isBlank()) {
             rows = jdbcTemplate.query(
-                    "SELECT feedback_id,qs_id,company_id,feedback_type,region,risk_level,status,created_at FROM yx_scan_anomaly.feedback_record WHERE company_id=? ORDER BY created_at DESC LIMIT 300",
+                    "SELECT feedback_id,qs_id,company_id,feedback_type,region,risk_level,status,submitter_ip,created_at FROM feedback_record WHERE company_id=? ORDER BY created_at DESC LIMIT 300",
                     (rs, rowNum) -> mapFeedback(rs),
                     normalizedCompany
             );
         } else {
             rows = jdbcTemplate.query(
-                    "SELECT feedback_id,qs_id,company_id,feedback_type,region,risk_level,status,created_at FROM yx_scan_anomaly.feedback_record ORDER BY created_at DESC LIMIT 500",
+                    "SELECT feedback_id,qs_id,company_id,feedback_type,region,risk_level,status,submitter_ip,created_at FROM feedback_record ORDER BY created_at DESC LIMIT 500",
                     (rs, rowNum) -> mapFeedback(rs)
             );
         }
         return R.ok(rows);
+    }
+
+    public R<Map<String, Object>> detail(String feedbackId, String role, String companyId) {
+        AssertUtil.notEmpty(feedbackId, "feedbackId不能为空");
+        String normalizedRole = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
+        String normalizedCompany = companyId == null ? "" : companyId.trim();
+
+        Map<String, Object> row;
+        if ("COMPANY".equals(normalizedRole) && !normalizedCompany.isBlank()) {
+            row = jdbcTemplate.query(
+                    "SELECT feedback_id,qs_id,company_id,feedback_type,description,region,submitter_ip,image_file,complaint_rate,risk_level,status,handle_user,handle_note,handle_time,created_at FROM feedback_record WHERE feedback_id=? AND company_id=?",
+                    rs -> rs.next() ? mapFeedbackDetail(rs) : null,
+                    feedbackId.trim(), normalizedCompany
+            );
+        } else {
+            row = jdbcTemplate.query(
+                    "SELECT feedback_id,qs_id,company_id,feedback_type,description,region,submitter_ip,image_file,complaint_rate,risk_level,status,handle_user,handle_note,handle_time,created_at FROM feedback_record WHERE feedback_id=?",
+                    rs -> rs.next() ? mapFeedbackDetail(rs) : null,
+                    feedbackId.trim()
+            );
+        }
+        if (row == null) {
+            return R.fail("反馈编号不存在或无权限查看");
+        }
+        return R.ok(row);
+    }
+
+    public R<Map<String, Object>> updateStatus(String feedbackId, String status, String handleNote, String role, String operator, String companyId) {
+        AssertUtil.notEmpty(feedbackId, "feedbackId不能为空");
+        AssertUtil.notEmpty(status, "status不能为空");
+        String normalizedRole = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
+        if (!"ADMIN".equals(normalizedRole)) {
+            return R.fail("仅管理员可更新反馈状态");
+        }
+
+        String nextStatus = status.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("ACCEPTED", "REJECTED", "CLOSED").contains(nextStatus)) {
+            return R.fail("status仅支持 ACCEPTED/REJECTED/CLOSED");
+        }
+
+        Map<String, Object> current = jdbcTemplate.query(
+                "SELECT qs_id,company_id,submitter_ip FROM feedback_record WHERE feedback_id=?",
+                rs -> {
+                    if (!rs.next()) {
+                        return null;
+                    }
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("qsId", rs.getString("qs_id"));
+                    item.put("companyId", rs.getString("company_id"));
+                    item.put("submitterIp", rs.getString("submitter_ip"));
+                    return item;
+                },
+                feedbackId.trim()
+        );
+        if (current == null) {
+            return R.fail("反馈编号不存在");
+        }
+
+        String note = fitLength(handleNote, 180);
+        if ("CLOSED".equals(nextStatus)) {
+            String qsId = String.valueOf(current.get("qsId"));
+            String submitterIp = safeText((String) current.get("submitterIp"));
+            String qrStatus = "unknown";
+            try {
+                R<Map<String, Object>> traceResp = traceFeignClient.queryTrace(qsId);
+                if (traceResp != null && traceResp.getCode() == 200 && traceResp.getData() != null) {
+                    Object qsCodeRaw = traceResp.getData().get("qsCode");
+                    if (qsCodeRaw instanceof Map<?, ?> qsMap) {
+                        qrStatus = safeText(stringValue(qsMap.get("status")));
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            String closeSummary = "结案说明: submitterIp=" + submitterIp + ", qrStatus=" + qrStatus;
+            note = note == null || note.isBlank() ? closeSummary : fitLength(note + " | " + closeSummary, 255);
+        }
+
+        int affected = jdbcTemplate.update(
+                "UPDATE feedback_record SET status=?,handle_user=?,handle_note=?,handle_time=NOW() WHERE feedback_id=?",
+                nextStatus,
+                safeText(operator),
+                note,
+                feedbackId.trim()
+        );
+        if (affected <= 0) {
+            return R.fail("状态更新失败");
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("feedbackId", feedbackId.trim());
+        result.put("status", nextStatus);
+        result.put("handleUser", safeText(operator));
+        result.put("handleNote", note);
+        result.put("companyId", safeText(companyId));
+        return R.ok(result);
     }
 
     public Resource loadImage(String fileName) {
@@ -257,28 +394,24 @@ public class FeedbackService {
         }
     }
 
-    private boolean triggerFeedbackAlertIfNeeded(String qsId, String companyId, String riskLevel) {
+    private boolean triggerFeedbackAlertIfNeeded(String feedbackId,
+                                                 String qsId,
+                                                 String companyId,
+                                                 String feedbackType,
+                                                 double complaintRate,
+                                                 String riskLevel) {
         if (!"HIGH".equals(riskLevel) && !"MEDIUM".equals(riskLevel)) {
             return false;
         }
         try {
             Map<String, Object> body = new HashMap<>();
+            body.put("feedbackId", feedbackId);
             body.put("qsId", qsId);
             body.put("companyId", companyId == null ? "UNKNOWN" : companyId);
-            body.put("scanCount1h", "HIGH".equals(riskLevel) ? 12 : 6);
-            body.put("deviceCount1d", "HIGH".equals(riskLevel) ? 15 : 8);
-            body.put("ipCount1h", "HIGH".equals(riskLevel) ? 25 : 12);
-            body.put("scanCount", "HIGH".equals(riskLevel) ? 12 : 6);
-            body.put("deviceCount", "HIGH".equals(riskLevel) ? 15 : 8);
-            body.put("ipCount", "HIGH".equals(riskLevel) ? 25 : 12);
-            body.put("locationVariance", "HIGH".equals(riskLevel) ? 1.2 : 0.8);
-            body.put("timeVariance", "HIGH".equals(riskLevel) ? 1.0 : 0.6);
-            body.put("newDevice", false);
-            body.put("riskDevice", "HIGH".equals(riskLevel));
-            body.put("distanceKm", "HIGH".equals(riskLevel) ? 120.0 : 60.0);
-            body.put("city", null);
-            body.put("province", null);
-            R<?> resp = alertFeignClient.evaluate(body);
+            body.put("feedbackType", feedbackType);
+            body.put("complaintRate", complaintRate);
+            body.put("riskLevel", riskLevel);
+            R<?> resp = alertFeignClient.createFeedbackMessage(body);
             return resp != null && resp.getCode() == 200;
         } catch (Exception ignored) {
             return false;
@@ -296,7 +429,7 @@ public class FeedbackService {
 
     private int countFeedback(String qsId) {
         Integer cnt = jdbcTemplate.queryForObject(
-                "SELECT COUNT(1) FROM yx_scan_anomaly.feedback_record WHERE qs_id=?",
+                "SELECT COUNT(1) FROM feedback_record WHERE qs_id=?",
                 Integer.class,
                 qsId
         );
@@ -349,8 +482,60 @@ public class FeedbackService {
         row.put("region", rs.getString("region"));
         row.put("riskLevel", rs.getString("risk_level"));
         row.put("status", rs.getString("status"));
+        row.put("submitterIpMasked", maskIp(rs.getString("submitter_ip")));
         row.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
         return row;
+    }
+
+    private Map<String, Object> mapFeedbackDetail(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("feedbackId", rs.getString("feedback_id"));
+        row.put("qsId", rs.getString("qs_id"));
+        row.put("companyId", rs.getString("company_id"));
+        row.put("feedbackType", rs.getString("feedback_type"));
+        row.put("description", rs.getString("description"));
+        row.put("region", rs.getString("region"));
+        row.put("submitterIp", rs.getString("submitter_ip"));
+        row.put("submitterIpMasked", maskIp(rs.getString("submitter_ip")));
+        row.put("imagePath", "/scan/feedback/image/" + rs.getString("image_file"));
+        row.put("complaintRate", rs.getDouble("complaint_rate"));
+        row.put("riskLevel", rs.getString("risk_level"));
+        row.put("feedbackStatus", rs.getString("status"));
+        row.put("handleUser", rs.getString("handle_user"));
+        row.put("handleNote", rs.getString("handle_note"));
+        row.put("handleTime", rs.getTimestamp("handle_time") == null ? null : rs.getTimestamp("handle_time").toLocalDateTime());
+        row.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
+        return row;
+    }
+
+    private void addColumnIfMissing(String columnName, String alterSql) {
+        Integer cnt = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name='feedback_record' AND column_name=?",
+                Integer.class,
+                columnName
+        );
+        if (cnt != null && cnt == 0) {
+            jdbcTemplate.execute(alterSql);
+        }
+    }
+
+    private String maskIp(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return "-";
+        }
+        String text = ip.trim();
+        int idx = text.lastIndexOf('.');
+        if (idx > 0) {
+            return text.substring(0, idx) + ".*";
+        }
+        return text.length() <= 4 ? "****" : text.substring(0, 4) + "****";
+    }
+
+    private String safeText(String value) {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+        return value.trim();
     }
 }
 

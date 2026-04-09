@@ -5,6 +5,7 @@ import org.hunau.alert.client.BlockFeignClient;
 import org.hunau.alert.client.TraceFeignClient;
 import org.hunau.alert.model.AlertEvaluateRequest;
 import org.hunau.alert.model.AlertRecord;
+import org.hunau.alert.model.FeedbackMessageRequest;
 import org.hunau.alert.rule.RuleEngineResult;
 import org.hunau.common.R;
 import org.hunau.common.RiskLevel;
@@ -94,22 +95,89 @@ public class AlertService {
         return R.ok(record);
     }
 
-    public R<List<AlertRecord>> list() {
-        List<AlertRecord> result = jdbcTemplate.query(
-                "SELECT alert_id,qs_id,company_id,alert_level,reason,detail,created_at,status FROM alert_record ORDER BY alert_id DESC LIMIT 500",
-                (rs, rowNum) -> {
-                    AlertRecord record = new AlertRecord();
-                    record.setEventId(String.valueOf(rs.getLong("alert_id")));
-                    record.setQsId(rs.getString("qs_id"));
-                    record.setCompanyId(rs.getString("company_id"));
-                    record.setRiskLevel(toRiskLevel(rs.getInt("alert_level")));
-                    record.setDetail(rs.getString("detail"));
-                    record.setStatus("open".equalsIgnoreCase(rs.getString("status")) ? "OPEN" : "CLOSED");
-                    record.setCreatedAt(rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
-                    return record;
-                }
-        );
+    public R<List<Map<String, Object>>> list(String role, String companyId) {
+        String normalizedRole = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+
+        String baseSql = "SELECT ar.alert_id,ar.qs_id,ar.company_id,ar.alert_level,ar.reason,ar.detail,ar.created_at,ar.status,"
+                + "aa.result AS action_result,aa.push_status AS push_status "
+                + "FROM alert_record ar "
+                + "LEFT JOIN ("
+                + "  SELECT t1.alert_id,t1.result,t1.push_status FROM alert_action t1 "
+                + "  INNER JOIN (SELECT alert_id,MAX(action_id) max_id FROM alert_action GROUP BY alert_id) t2 "
+                + "    ON t1.alert_id=t2.alert_id AND t1.action_id=t2.max_id"
+                + ") aa ON ar.alert_id=aa.alert_id ";
+
+        List<Map<String, Object>> result;
+        if ("COMPANY".equals(normalizedRole) && !normalizedCompanyId.isBlank()) {
+            result = jdbcTemplate.query(
+                    baseSql + "WHERE ar.company_id=? ORDER BY ar.alert_id DESC LIMIT 500",
+                    (rs, rowNum) -> mapMessageRow(rs),
+                    normalizedCompanyId
+            );
+        } else {
+            result = jdbcTemplate.query(
+                    baseSql + "ORDER BY ar.alert_id DESC LIMIT 500",
+                    (rs, rowNum) -> mapMessageRow(rs)
+            );
+        }
         return R.ok(result);
+    }
+
+    public R<Map<String, Object>> createFeedbackMessage(FeedbackMessageRequest request) {
+        AssertUtil.notNull(request, "请求不能为空");
+        AssertUtil.notEmpty(request.getQsId(), "qsId不能为空");
+        AssertUtil.notEmpty(request.getCompanyId(), "companyId不能为空");
+        AssertUtil.notEmpty(request.getRiskLevel(), "riskLevel不能为空");
+
+        String riskLevel = request.getRiskLevel().trim().toUpperCase(Locale.ROOT);
+        int alertLevel = toAlertLevelByText(riskLevel);
+        if (alertLevel < 0) {
+            return R.fail("riskLevel仅支持 HIGH/MEDIUM");
+        }
+
+        double complaintRate = Optional.ofNullable(request.getComplaintRate()).orElse(0.0);
+        String reason = "消费者反馈投诉率异常(" + String.format(Locale.ROOT, "%.2f%%", complaintRate * 100.0) + ")";
+        String detail = "feedbackId=" + safeText(request.getFeedbackId())
+                + ", feedbackType=" + safeText(request.getFeedbackType())
+                + ", complaintRate=" + String.format(Locale.ROOT, "%.6f", complaintRate)
+                + ", source=feedback_flow";
+
+        jdbcTemplate.update(
+                "INSERT INTO alert_record(qs_id,company_id,rule_id,alert_level,reason,detail,created_at,status) VALUES (?,?,?,?,?,?,NOW(),'open')",
+                request.getQsId().trim(),
+                request.getCompanyId().trim(),
+                "R001",
+                alertLevel,
+                reason,
+                detail
+        );
+
+        Long alertId = jdbcTemplate.query(
+                "SELECT alert_id FROM alert_record WHERE qs_id=? AND company_id=? ORDER BY alert_id DESC LIMIT 1",
+                rs -> rs.next() ? rs.getLong("alert_id") : null,
+                request.getQsId().trim(),
+                request.getCompanyId().trim()
+        );
+        if (alertId != null) {
+            jdbcTemplate.update(
+                    "INSERT INTO alert_action(alert_id,action_type,result,push_status,retry_count) VALUES (?,?,?,?,?)",
+                    alertId,
+                    "notify",
+                    "反馈投诉率触发系统消息",
+                    "success",
+                    0
+            );
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("alertId", alertId);
+        payload.put("qsId", request.getQsId().trim());
+        payload.put("companyId", request.getCompanyId().trim());
+        payload.put("riskLevel", riskLevel);
+        payload.put("complaintRate", complaintRate);
+        payload.put("created", true);
+        return R.ok(payload);
     }
 
     private double enrichRuleScore(double ruleScore,
@@ -280,5 +348,37 @@ public class AlertService {
             return RiskLevel.MEDIUM;
         }
         return RiskLevel.LOW;
+    }
+
+    private int toAlertLevelByText(String riskLevel) {
+        if ("HIGH".equals(riskLevel)) {
+            return 1;
+        }
+        if ("MEDIUM".equals(riskLevel)) {
+            return 2;
+        }
+        return -1;
+    }
+
+    private String safeText(String value) {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+        return value.trim();
+    }
+
+    private Map<String, Object> mapMessageRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("alertId", rs.getLong("alert_id"));
+        row.put("qsId", rs.getString("qs_id"));
+        row.put("companyId", rs.getString("company_id"));
+        row.put("alertLevel", toRiskLevel(rs.getInt("alert_level")).name());
+        row.put("reason", rs.getString("reason"));
+        row.put("detail", rs.getString("detail"));
+        row.put("status", "open".equalsIgnoreCase(rs.getString("status")) ? "OPEN" : "CLOSED");
+        row.put("actionResult", rs.getString("action_result"));
+        row.put("pushStatus", rs.getString("push_status"));
+        row.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
+        return row;
     }
 }

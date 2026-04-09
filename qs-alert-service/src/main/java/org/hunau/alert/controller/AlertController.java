@@ -1,12 +1,16 @@
 package org.hunau.alert.controller;
 
 import org.hunau.alert.model.AlertEvaluateRequest;
+import org.hunau.alert.model.FeedbackMessageRequest;
 import org.hunau.alert.model.RuleStatusUpdateRequest;
 import org.hunau.alert.model.RuleThresholdUpdateRequest;
 import org.hunau.alert.service.AlertRuleEngineService;
 import org.hunau.alert.service.AlertService;
 import org.hunau.common.R;
 import org.hunau.common.util.AssertUtil;
+import org.hunau.common.util.JwtUtil;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -26,9 +30,17 @@ public class AlertController {
         return alertService.evaluate(request);
     }
 
-    @GetMapping("/list")
-    public R<?> list() {
-        return alertService.list();
+    @GetMapping({"/list", "/messages"})
+    public R<?> list(@RequestHeader(value = "Authorization", required = false) String authorization,
+                     Authentication authentication) {
+        String role = resolveRole(authentication);
+        String companyId = resolveCompanyId(authorization);
+        return alertService.list(role, companyId);
+    }
+
+    @PostMapping("/messages/feedback")
+    public R<?> createFeedbackMessage(@RequestBody FeedbackMessageRequest request) {
+        return alertService.createFeedbackMessage(request);
     }
 
     @GetMapping("/rules")
@@ -62,6 +74,31 @@ public class AlertController {
     @PostMapping("/rules/reload")
     public R<?> reloadRules() {
         return R.ok(alertRuleEngineService.reloadNow());
+    }
+
+    private String resolveRole(Authentication authentication) {
+        if (authentication == null) {
+            return "";
+        }
+        for (GrantedAuthority authority : authentication.getAuthorities()) {
+            String item = authority.getAuthority();
+            if (item != null && item.startsWith("ROLE_")) {
+                return item.substring(5);
+            }
+        }
+        return "";
+    }
+
+    private String resolveCompanyId(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return "";
+        }
+        String token = authorization.substring(7);
+        if (!JwtUtil.validate(token)) {
+            return "";
+        }
+        String companyId = JwtUtil.getCompanyId(token);
+        return companyId == null ? "" : companyId.trim();
     }
 }
 

@@ -9,7 +9,17 @@ public class AlertFeignClientFallbackFactory implements FallbackFactory<AlertFei
 
     @Override
     public AlertFeignClient create(Throwable cause) {
-        return body -> R.fail("预警服务不可用: " + (cause == null ? "unknown" : cause.getMessage()));
+        return new AlertFeignClient() {
+            @Override
+            public R<?> evaluate(java.util.Map<String, Object> body) {
+                return R.fail("预警服务不可用: " + (cause == null ? "unknown" : cause.getMessage()));
+            }
+
+            @Override
+            public R<?> createFeedbackMessage(java.util.Map<String, Object> body) {
+                return R.fail("预警服务不可用: " + (cause == null ? "unknown" : cause.getMessage()));
+            }
+        };
     }
 }
 
