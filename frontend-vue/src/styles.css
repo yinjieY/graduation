@@ -1,14 +1,17 @@
 :root {
+  /* 融合原本的蓝灰与高级的翡翠绿 */
   --bg: #f4f7fb;
   --panel: #ffffff;
   --panel-soft: #f8fafc;
   --text: #132238;
   --muted: #5d6b82;
-  --primary: #1f6feb;
-  --primary-strong: #1557bb;
+
+  /* 全局主色调替换为高级沉稳的青蓝色/绿色 */
+  --primary: #0e6b52;
+  --primary-strong: #0a4f3c;
   --danger: #d4382a;
   --border: #d9e3f0;
-  --shadow: 0 8px 24px rgba(19, 34, 56, 0.08);
+  --shadow: 0 8px 24px rgba(14, 107, 82, 0.08);
 }
 
 * {
@@ -19,7 +22,7 @@ body {
   margin: 0;
   color: var(--text);
   background: linear-gradient(180deg, #eef3fb 0%, var(--bg) 100%);
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 #app {
@@ -30,8 +33,9 @@ body {
   min-height: 100vh;
 }
 
+/* 去除扫码页面包裹的额外间距，让其占满手机全屏 */
 .container {
-  width: min(1200px, 100% - 24px);
+  width: min(1200px, 100%);
   margin: 0 auto;
 }
 
@@ -51,6 +55,7 @@ body {
 .brand {
   font-size: 18px;
   font-weight: 700;
+  color: var(--primary-strong);
 }
 
 .tabs {
@@ -64,21 +69,25 @@ body {
   color: var(--muted);
   text-decoration: none;
   border-radius: 999px;
+  font-size: 14px;
   transition: all 0.2s ease;
 }
 
 .tabs a.router-link-active {
   color: #fff;
   background: var(--primary);
+  box-shadow: 0 2px 8px rgba(14, 107, 82, 0.3);
 }
 
 .page {
-  padding: 20px 0 30px;
+  /* 对于非扫码页面保留内边距，扫码页面在自身内部控制 */
+  padding-bottom: 30px;
 }
 
 .panel {
   display: grid;
   gap: 14px;
+  padding: 20px;
 }
 
 .panel-title {
@@ -95,9 +104,9 @@ body {
   padding: 10px 12px;
   border-radius: 10px;
   font-size: 14px;
-  background: #eef6ff;
-  color: #13468a;
-  border: 1px solid #cfe3ff;
+  background: #ebf7f2;
+  color: #0e6b52;
+  border: 1px solid rgba(14, 107, 82, 0.2);
 }
 
 .status-line.error {
@@ -106,6 +115,7 @@ body {
   background: #fff3f1;
 }
 
+/* 以下是除了 ScanView 之外的普通后台管理页卡片样式 */
 .card {
   padding: 16px;
   border: 1px solid var(--border);
@@ -188,7 +198,7 @@ table {
 
 th,
 td {
-  padding: 8px;
+  padding: 12px 8px;
   border-bottom: 1px solid #e8edf5;
   text-align: left;
   vertical-align: top;
@@ -215,14 +225,13 @@ pre {
 
 @media (max-width: 760px) {
   .topbar {
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .tabs {
-	width: 100%;
-	overflow: auto;
+    width: 100%;
+    overflow: auto;
   }
 }
-
