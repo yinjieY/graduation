@@ -1,7 +1,7 @@
 <template>
-  <div class="layout" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
+  <div class="layout">
     <Sidebar :role="role" />
-    <div class="main-content" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
+    <div class="main-content" :class="{ 'sidebar-collapsed': isCollapsed }">
       <div class="content-wrapper">
         <slot></slot>
       </div>
@@ -10,8 +10,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { provideSidebarState } from '../composables/useSidebar';
 import Sidebar from './Sidebar.vue';
 
 const props = defineProps({
@@ -22,24 +21,8 @@ const props = defineProps({
   }
 });
 
-const route = useRoute();
-const isSidebarCollapsed = ref(false);
-
-function checkSidebarState() {
-  const savedState = localStorage.getItem(`sidebar_collapsed_${props.role}`);
-  isSidebarCollapsed.value = savedState === 'true';
-}
-
-// 监听本地存储变化，同步侧边栏状态
-window.addEventListener('storage', (e) => {
-  if (e.key === `sidebar_collapsed_${props.role}`) {
-    isSidebarCollapsed.value = e.newValue === 'true';
-  }
-});
-
-onMounted(() => {
-  checkSidebarState();
-});
+// 提供侧边栏状态管理
+const { isCollapsed } = provideSidebarState(props.role);
 </script>
 
 <style scoped>
@@ -54,22 +37,26 @@ onMounted(() => {
   margin-left: 240px;
   transition: all 0.3s ease;
   min-height: 100vh;
+  background: #ffffff;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.05);
 }
 
+/* 修正宽度：保持和侧边栏折叠后的 64px 宽度一致 */
 .main-content.sidebar-collapsed {
-  margin-left: 90px;
+  margin-left: 64px;
 }
 
 .content-wrapper {
   padding: 32px;
   min-height: 100vh;
+  transition: all 0.3s ease;
 }
 
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
   }
-  
+
   .content-wrapper {
     padding: 20px;
   }
