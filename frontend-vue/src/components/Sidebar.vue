@@ -3,7 +3,7 @@
     <div class="sidebar-header">
       <div class="logo" :class="{ collapsed: isCollapsed }">
         <h3 v-if="!isCollapsed">{{ role === 'admin' ? '管理员后台' : '商家工作台' }}</h3>
-        <span v-else>{{ role === 'admin' ? '管' : '商' }}</span>
+        <span v-else class="logo-icon-collapsed">{{ role === 'admin' ? '🛡️' : '🏭' }}</span>
       </div>
       <button class="collapse-btn" @click="toggleCollapse">
         <span class="icon">{{ isCollapsed ? '>' : '<' }}</span>
@@ -52,6 +52,7 @@ const navItems = computed(() => {
     return [
       { path: '/admin/dashboard', label: '工作台', icon: '📊' },
       { path: '/admin/enterprise', label: '企业管理', icon: '🏢' },
+      { path: '/admin/qrcode', label: '二维码管理', icon: '📱' },
       { path: '/admin/feedback', label: '反馈处理', icon: '💬' },
       { path: '/admin/message', label: '系统消息', icon: '📋' }
     ];
@@ -86,6 +87,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 侧边栏容器 */
 .sidebar {
   width: 240px;
   height: 100vh;
@@ -99,56 +101,94 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
+/* 折叠状态 */
 .sidebar.collapsed {
   width: 64px;
 }
 
+/* 侧边栏头部 */
 .sidebar-header {
-  padding: 20px;
+  padding: 16px;
   border-bottom: 1px solid #334155;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: 60px;
+  box-sizing: border-box;
 }
 
+/* Logo 样式 */
 .logo {
   font-weight: 700;
   display: flex;
   align-items: center;
   transition: all 0.3s ease;
+  flex: 1;
 }
 
 .logo h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   color: #f8fafc;
+  font-family: 'Noto Sans SC', sans-serif;
 }
 
 .logo.collapsed {
-  font-size: 20px;
+  justify-content: center;
 }
 
+.logo-icon-collapsed {
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 折叠按钮 */
 .collapse-btn {
   background: transparent;
   border: none;
   color: #94a3b8;
   cursor: pointer;
-  font-size: 16px;
-  padding: 4px;
-  border-radius: 4px;
+  font-size: 14px;
+  padding: 8px;
+  border-radius: 6px;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 8px;
 }
 
 .collapse-btn:hover {
   background: #334155;
   color: #f8fafc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.collapse-btn .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-weight: bold;
+}
+
+/* 导航区域 */
 .sidebar-nav {
   flex: 1;
-  padding: 20px 0;
+  padding: 16px 0;
+  overflow-y: auto;
 }
 
 .sidebar-nav ul {
@@ -158,66 +198,118 @@ onMounted(() => {
 }
 
 .sidebar-nav li {
-  margin: 4px 0;
+  margin: 2px 0;
 }
 
+/* 导航链接 */
 .sidebar-nav a {
   display: flex;
   align-items: center;
-  padding: 12px 20px;
+  padding: 12px 16px;
   color: #94a3b8;
   text-decoration: none;
   transition: all 0.2s ease;
-  border-radius: 0 100px 100px 0;
+  border-radius: 8px;
   margin: 0 12px;
+  position: relative;
 }
 
 .sidebar-nav a:hover {
   background: rgba(59, 130, 246, 0.1);
   color: #f8fafc;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
 }
 
 .sidebar-nav li.active a {
   background: rgba(59, 130, 246, 0.2);
   color: #f8fafc;
   border-left: 3px solid #3b82f6;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
 }
 
+/* 导航图标 */
 .nav-icon {
-  font-size: 18px;
+  font-size: 16px;
   margin-right: 12px;
   min-width: 20px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  flex-shrink: 0;
 }
 
+/* 导航文本 */
 .nav-text {
   transition: all 0.3s ease;
+  font-size: 14px;
+  font-weight: 500;
 }
 
+/* 侧边栏底部 */
 .sidebar-footer {
-  padding: 20px;
+  padding: 16px;
   border-top: 1px solid #334155;
 }
 
+/* 退出按钮 */
 .logout-btn {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 12px;
+  padding: 12px 16px;
   background: transparent;
   border: none;
   color: #94a3b8;
   cursor: pointer;
   border-radius: 8px;
   transition: all 0.2s ease;
+  margin: 0 12px;
 }
 
 .logout-btn:hover {
   background: rgba(239, 68, 68, 0.1);
   color: #f8fafc;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
 }
 
+/* 折叠状态下的退出按钮 */
+.sidebar.collapsed .logout-btn {
+  justify-content: center;
+  padding: 12px;
+}
+
+/* 折叠状态下的导航链接 */
+.sidebar.collapsed .sidebar-nav a {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.collapsed .nav-icon {
+  margin-right: 0;
+}
+
+/* 滚动条样式 */
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 2px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* 响应式设计 */
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);

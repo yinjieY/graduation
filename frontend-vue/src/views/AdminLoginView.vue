@@ -94,7 +94,7 @@ const router = useRouter();
 const loading = ref(false);
 const notice = ref('');
 const noticeType = ref('info');
-const form = reactive({ account: 'admin001', password: 'password' });
+const form = reactive({ account: '', password: '' });
 const errors = reactive({ account: '', password: '' });
 
 function setNotice(message, type = 'info') {

@@ -1,5 +1,5 @@
 <template>
-  <div class="layout">
+  <div class="layout" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
     <Sidebar :role="role" />
     <div class="main-content" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
       <div class="content-wrapper">
@@ -57,7 +57,7 @@ onMounted(() => {
 }
 
 .main-content.sidebar-collapsed {
-  margin-left: 64px;
+  margin-left: 90px;
 }
 
 .content-wrapper {

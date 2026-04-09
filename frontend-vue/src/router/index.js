@@ -25,12 +25,17 @@ const routes = [
     component: () => import('../views/AdminView.vue'), 
     meta: { authRole: 'admin', title: '管理员控制台' }
   },
-  { 
-    path: '/admin/enterprise', 
-    component: () => import('../views/admin/AdminEnterpriseView.vue'), 
+  {
+    path: '/admin/enterprise',
+    component: () => import('../views/admin/AdminEnterpriseView.vue'),
     meta: { authRole: 'admin', title: '企业管理' }
   },
-  { 
+  {
+    path: '/admin/qrcode',
+    component: () => import('../views/admin/AdminQrcodeView.vue'),
+    meta: { authRole: 'admin', title: '二维码管理' }
+  },
+  {
     path: '/admin/feedback', 
     component: () => import('../views/admin/AdminFeedbackView.vue'), 
     meta: { authRole: 'admin', title: '反馈管理' }

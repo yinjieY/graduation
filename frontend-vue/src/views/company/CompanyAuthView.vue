@@ -11,9 +11,8 @@
           <h3>认证信息</h3>
         </div>
         <div class="form-group">
-          <input v-model="applyForm.companyId" placeholder="companyId" />
           <input v-model="applyForm.companyName" placeholder="企业名称" />
-          <input v-model="applyForm.remark" placeholder="申请备注" />
+          <input v-model="applyForm.remark" placeholder="申请备注（可选）" />
         </div>
         <div class="form-actions">
           <button class="btn-primary" :disabled="loading" @click="onApply">提交申请</button>
@@ -37,13 +36,23 @@ import Layout from '../../components/Layout.vue';
 
 const loading = ref(false);
 const statusText = ref('未查询');
-const applyForm = reactive({ companyId: '', companyName: '', remark: '' });
+const applyForm = reactive({ companyName: '', remark: '' });
 const token = ref(getToken('company'));
+
+// 从localStorage获取登录时的用户信息，包括companyId
+const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+const companyId = ref(userInfo.companyId || '');
 
 async function onApply() {
   loading.value = true;
   try {
-    const res = await submitCompanyApply(applyForm, token.value);
+    // 提交申请时，companyId应该从登录信息中获取，而不是用户输入
+    const formData = {
+      companyId: companyId.value,
+      companyName: applyForm.companyName,
+      remark: applyForm.remark
+    };
+    const res = await submitCompanyApply(formData, token.value);
     if (res.code === 200 && res.data) {
       statusText.value = res.data.statusText || 'PENDING';
     }
@@ -55,12 +64,13 @@ async function onApply() {
 }
 
 async function onQueryStatus() {
-  if (!applyForm.companyId) {
+  if (!companyId.value) {
+    statusText.value = '请先登录获取企业信息';
     return;
   }
   loading.value = true;
   try {
-    const res = await queryCompanyStatus(applyForm.companyId, token.value);
+    const res = await queryCompanyStatus(companyId.value, token.value);
     if (res.code === 200 && res.data) {
       statusText.value = `${res.data.statusText || ''} ${res.data.remark || ''}`.trim();
     }
