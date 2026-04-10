@@ -87,8 +87,7 @@ export async function apiFetch(url, options = {}) {
     return pendingRequests.get(cacheKey);
   }
   
-  // 获取token并添加到请求头
-  const token = getToken();
+  // 构建请求头
   const headers = {
     ...options.headers
   };
@@ -96,10 +95,6 @@ export async function apiFetch(url, options = {}) {
   // Let browser auto-fill multipart boundary for FormData.
   if (!(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
-  }
-  
-  if (token) {
-    headers['Authorization'] = normalizeBearerToken(token);
   }
   
   // 创建请求Promise
@@ -153,12 +148,12 @@ export async function apiFetch(url, options = {}) {
 }
 
 export function authHeaders(token) {
-  const bearer = normalizeBearerToken(token);
-  if (!bearer) {
+  const normalizedToken = normalizeBearerToken(token);
+  if (!normalizedToken) {
     return {};
   }
   return {
-    Authorization: bearer
+    Authorization: normalizedToken
   };
 }
 

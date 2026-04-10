@@ -50,6 +50,7 @@ import BaseInput from '../../components/BaseInput.vue';
 import BaseButton from '../../components/BaseButton.vue';
 import { useApi, handleApiError } from '../../composables/useApi';
 import { useNotification } from '../../composables/useNotification';
+import { getToken } from '../../api/session';
 
 const router = useRouter();
 const api = useApi();
@@ -102,7 +103,7 @@ const handleSubmit = async () => {
   
   try {
     loading.value = true;
-    const token = localStorage.getItem('company_token');
+    const token = getToken('company');
     await api.updateCompanyInfo({
       name: formData.name,
       address: formData.address,
@@ -124,7 +125,7 @@ const handleCancel = () => {
 const loadCompanyInfo = async () => {
   try {
     loading.value = true;
-    const token = localStorage.getItem('company_token');
+    const token = getToken('company');
     const data = await api.getCompanyInfo(token);
     Object.assign(formData, data);
   } catch (error) {

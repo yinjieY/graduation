@@ -239,13 +239,18 @@ public class FeedbackService {
         String normalizedRole = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
         String normalizedCompany = companyId == null ? "" : companyId.trim();
         List<Map<String, Object>> rows;
-        if ("COMPANY".equals(normalizedRole) && !normalizedCompany.isBlank()) {
+        if (!normalizedCompany.isBlank()) {
+            // 无论角色是什么，只要提供了 companyId，就根据 companyId 过滤
             rows = jdbcTemplate.query(
                     "SELECT feedback_id,qs_id,company_id,feedback_type,region,risk_level,status,submitter_ip,created_at FROM feedback_record WHERE company_id=? ORDER BY created_at DESC LIMIT 300",
                     (rs, rowNum) -> mapFeedback(rs),
                     normalizedCompany
             );
+        } else if ("COMPANY".equals(normalizedRole)) {
+            // 如果是 COMPANY 角色但没有提供 companyId，返回空列表
+            rows = new ArrayList<>();
         } else {
+            // 其他情况（ADMIN 或未登录）返回全量消息
             rows = jdbcTemplate.query(
                     "SELECT feedback_id,qs_id,company_id,feedback_type,region,risk_level,status,submitter_ip,created_at FROM feedback_record ORDER BY created_at DESC LIMIT 500",
                     (rs, rowNum) -> mapFeedback(rs)

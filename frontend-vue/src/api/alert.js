@@ -1,7 +1,25 @@
 import { apiFetch, authHeaders } from './http';
 
 export function getMessages(token) {
-  return apiFetch('/alert/messages', { headers: authHeaders(token) });
+  console.log('调用 getMessages，token:', token);
+  // 从localStorage获取companyUserInfo
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    console.log('companyId:', companyId);
+    if (companyId) {
+      return apiFetch(`/alert/messages?companyId=${encodeURIComponent(companyId)}`, {
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch('/alert/messages', {
+    headers: authHeaders(token),
+    noCache: true
+  });
 }
 
 // 预警管理

@@ -1,7 +1,25 @@
 import { apiFetch, authHeaders } from './http';
 
 export function getFeedbackList(token) {
-  return apiFetch('/scan/feedback/list', { headers: authHeaders(token) });
+  console.log('调用 getFeedbackList，token:', token);
+  // 从localStorage获取companyUserInfo
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    console.log('companyId:', companyId);
+    if (companyId) {
+      return apiFetch(`/scan/feedback/list?companyId=${encodeURIComponent(companyId)}`, {
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch('/scan/feedback/list', {
+    headers: authHeaders(token),
+    noCache: true
+  });
 }
 
 export function getFeedbackDetail(feedbackId, token) {

@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { login, registerAdmin, registerCompany } from '../api/auth';
+import { clearToken as clearSessionToken, getToken as getSessionToken, setToken as setSessionToken } from '../api/session';
 import { useNotification } from './useNotification';
 
 export function useAuth() {
@@ -14,17 +15,17 @@ export function useAuth() {
   
   // 从localStorage获取token
   const getToken = (role) => {
-    return localStorage.getItem(`${role}_token`);
+    return getSessionToken(role);
   };
   
   // 存储token到localStorage
   const setToken = (role, token) => {
-    localStorage.setItem(`${role}_token`, token);
+    return setSessionToken(role, token);
   };
   
   // 清除token
   const clearToken = (role) => {
-    localStorage.removeItem(`${role}_token`);
+    clearSessionToken(role);
   };
   
   // 初始化认证状态

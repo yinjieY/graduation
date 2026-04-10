@@ -31,10 +31,11 @@ public class AlertController {
     }
 
     @GetMapping({"/list", "/messages"})
-    public R<?> list(@RequestHeader(value = "Authorization", required = false) String authorization,
+    public R<?> list(@RequestParam(value = "companyId", required = false) String companyIdParam,
+                     @RequestHeader(value = "Authorization", required = false) String authorization,
                      Authentication authentication) {
         String role = resolveRole(authentication);
-        String companyId = resolveCompanyId(authorization);
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
         return alertService.list(role, companyId);
     }
 

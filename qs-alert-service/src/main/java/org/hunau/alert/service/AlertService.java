@@ -99,23 +99,28 @@ public class AlertService {
         String normalizedRole = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
         String normalizedCompanyId = companyId == null ? "" : companyId.trim();
 
-        String baseSql = "SELECT ar.alert_id,ar.qs_id,ar.company_id,ar.alert_level,ar.reason,ar.detail,ar.created_at,ar.status,"
-                + "aa.result AS action_result,aa.push_status AS push_status "
-                + "FROM alert_record ar "
-                + "LEFT JOIN ("
-                + "  SELECT t1.alert_id,t1.result,t1.push_status FROM alert_action t1 "
-                + "  INNER JOIN (SELECT alert_id,MAX(action_id) max_id FROM alert_action GROUP BY alert_id) t2 "
-                + "    ON t1.alert_id=t2.alert_id AND t1.action_id=t2.max_id"
-                + ") aa ON ar.alert_id=aa.alert_id ";
+        String baseSql = "SELECT ar.alert_id,ar.qs_id,ar.company_id,ar.alert_level,ar.reason,ar.detail,ar.created_at,ar.status," +
+                "aa.result AS action_result,aa.push_status AS push_status " +
+                "FROM alert_record ar " +
+                "LEFT JOIN (" +
+                "  SELECT t1.alert_id,t1.result,t1.push_status FROM alert_action t1 " +
+                "  INNER JOIN (SELECT alert_id,MAX(action_id) max_id FROM alert_action GROUP BY alert_id) t2 " +
+                "    ON t1.alert_id=t2.alert_id AND t1.action_id=t2.max_id" +
+                ") aa ON ar.alert_id=aa.alert_id ";
 
         List<Map<String, Object>> result;
-        if ("COMPANY".equals(normalizedRole) && !normalizedCompanyId.isBlank()) {
+        if (!normalizedCompanyId.isBlank()) {
+            // 无论角色是什么，只要提供了 companyId，就根据 companyId 过滤
             result = jdbcTemplate.query(
                     baseSql + "WHERE ar.company_id=? ORDER BY ar.alert_id DESC LIMIT 500",
                     (rs, rowNum) -> mapMessageRow(rs),
                     normalizedCompanyId
             );
+        } else if ("COMPANY".equals(normalizedRole)) {
+            // 如果是 COMPANY 角色但没有提供 companyId，返回空列表
+            result = new ArrayList<>();
         } else {
+            // 其他情况（ADMIN 或未登录）返回全量消息
             result = jdbcTemplate.query(
                     baseSql + "ORDER BY ar.alert_id DESC LIMIT 500",
                     (rs, rowNum) -> mapMessageRow(rs)

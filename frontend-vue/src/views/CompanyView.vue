@@ -182,13 +182,33 @@ async function onQueryStatus() {
 }
 
 async function loadMessages() {
-  const res = await getMessages(token.value);
-  messages.value = res.data || [];
+  await withLoading(async () => {
+    console.log('点击了刷新消息按钮');
+    try {
+      console.log('调用 getMessages，token:', token.value);
+      const res = await getMessages(token.value);
+      console.log('getMessages 返回结果:', res);
+      messages.value = res.data || [];
+    } catch (error) {
+      console.error('加载消息失败:', error);
+      throw new Error('加载消息失败，请稍后重试');
+    }
+  });
 }
 
 async function loadFeedbacks() {
-  const res = await getFeedbackList(token.value);
-  feedbacks.value = res.data || [];
+  await withLoading(async () => {
+    console.log('点击了刷新反馈按钮');
+    try {
+      console.log('调用 getFeedbackList，token:', token.value);
+      const res = await getFeedbackList(token.value);
+      console.log('getFeedbackList 返回结果:', res);
+      feedbacks.value = res.data || [];
+    } catch (error) {
+      console.error('加载反馈失败:', error);
+      throw new Error('加载反馈失败，请稍后重试');
+    }
+  });
 }
 
 onMounted(async () => {
