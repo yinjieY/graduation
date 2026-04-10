@@ -55,4 +55,22 @@ public class CompanyController {
     public R<?> delete(@PathVariable String companyId) {
         return companyService.removeById(companyId);
     }
+    
+    /**
+     * 获取企业信息
+     */
+    @GetMapping("/info")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<?> getCompanyInfo() {
+        return companyService.getCompanyInfo();
+    }
+    
+    /**
+     * 更新企业信息
+     */
+    @PutMapping("/info")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<?> updateCompanyInfo(@RequestBody Company company) {
+        return companyService.updateCompanyInfo(company);
+    }
 }

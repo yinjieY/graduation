@@ -167,6 +167,66 @@ public class CompanyServiceImpl implements CompanyService {
         return R.ok(companyId);
     }
 
+    @Override
+    public R<?> getCompanyInfo() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new BusinessException("未登录或登录状态已失效");
+        }
+
+        Object principalObj = authentication.getPrincipal();
+        if (!(principalObj instanceof AuthPrincipal principal)) {
+            throw new BusinessException("用户身份上下文异常，请重新登录");
+        }
+
+        if ("COMPANY".equalsIgnoreCase(principal.getRole())) {
+            if (principal.getCompanyId() == null || principal.getCompanyId().isBlank()) {
+                throw new BusinessException("企业账号缺少 companyId，请重新登录");
+            }
+            Company company = companyMapper.selectById(principal.getCompanyId());
+            if (company == null) {
+                throw new BusinessException("企业不存在");
+            }
+            return R.ok(company);
+        } else if ("ADMIN".equalsIgnoreCase(principal.getRole())) {
+            // 管理员可以返回所有企业信息
+            List<Company> companies = companyMapper.selectList(new LambdaQueryWrapper<Company>()
+                    .orderByDesc(Company::getCreatedAt));
+            return R.ok(companies);
+        } else {
+            throw new BusinessException("权限不足，无法访问企业信息");
+        }
+    }
+
+    @Override
+    public R<?> updateCompanyInfo(Company company) {
+        AssertUtil.notNull(company, "企业信息不能为空");
+        AssertUtil.notEmpty(company.getName(), "企业名称不能为空");
+        AssertUtil.notEmpty(company.getAddress(), "企业地址不能为空");
+        AssertUtil.notEmpty(company.getContactPhone(), "联系电话不能为空");
+        
+        String targetCompanyId = resolveTargetCompanyId(company.getCompanyId(), "修改企业信息");
+        company.setCompanyId(targetCompanyId);
+
+        if (!traceExternalClient.isCompanyApproved(company.getCompanyId())) {
+            throw new BusinessException("企业未通过认证审核，禁止修改建档信息");
+        }
+
+        Company existed = companyMapper.selectById(company.getCompanyId());
+        if (existed == null) {
+            throw new BusinessException("企业不存在");
+        }
+
+        // COMPANY can maintain profile fields, but cannot change governance fields.
+        if (!isCurrentUserAdmin()) {
+            company.setLevel(existed.getLevel());
+            company.setStatus(existed.getStatus());
+        }
+
+        companyMapper.updateById(company);
+        return R.ok(company);
+    }
+
     private boolean isCurrentUserAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {

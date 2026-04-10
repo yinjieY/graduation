@@ -17,4 +17,8 @@ public interface CompanyService {
     R<?> updateGovernance(UpdateCompanyGovernanceRequest request);
 
     R<?> removeById(String companyId);
+    
+    R<?> getCompanyInfo();
+    
+    R<?> updateCompanyInfo(Company company);
 }
