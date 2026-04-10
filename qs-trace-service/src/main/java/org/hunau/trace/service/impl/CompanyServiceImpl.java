@@ -224,6 +224,8 @@ public class CompanyServiceImpl implements CompanyService {
         }
 
         companyMapper.updateById(company);
+        // 同步更新企业认证信息
+        traceExternalClient.updateCompanyAuthInfo(company.getCompanyId(), company.getName());
         return R.ok(company);
     }
 

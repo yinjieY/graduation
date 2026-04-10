@@ -68,5 +68,16 @@ public class TraceExternalClient {
             // keep trace status path non-blocking when proof service is unstable
         }
     }
+
+    public void updateCompanyAuthInfo(String companyId, String companyName) {
+        Map<String, String> body = new HashMap<>();
+        body.put("companyId", companyId);
+        body.put("companyName", companyName);
+        try {
+            authFeignClient.updateCompanyInfo(body);
+        } catch (Exception ignored) {
+            // keep trace update path non-blocking when auth service is unstable
+        }
+    }
 }
 

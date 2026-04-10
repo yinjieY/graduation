@@ -164,4 +164,27 @@ public class CompanyAuthController {
         return normalize(JwtUtil.getCompanyId(token));
     }
 
+    @PutMapping("/info")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<Map<String, Object>> updateInfo(@RequestBody Map<String, String> request, Authentication authentication, @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = resolveUpdateCompanyId(request, authentication, authorization);
+        String companyName = normalize(request.get("companyName"));
+        if (companyName.isEmpty()) {
+            return R.fail("companyName 不能为空");
+        }
+        Map<String, Object> data = companyAuthService.updateCompanyInfo(companyId, companyName);
+        if (data == null) {
+            return R.fail("企业认证记录不存在");
+        }
+        return R.ok(data);
+    }
+
+    private String resolveUpdateCompanyId(Map<String, String> request, Authentication authentication, String authorization) {
+        String requestCompanyId = normalize(request.get("companyId"));
+        if (!requestCompanyId.isEmpty()) {
+            return requestCompanyId;
+        }
+        return resolveApplyCompanyId(new CompanyApplyRequest(), authentication, authorization);
+    }
+
 }

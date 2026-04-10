@@ -25,12 +25,6 @@
             :error="errors.contactPhone"
             required
           />
-          <BaseInput
-            v-model="formData.level"
-            label="企业等级"
-            placeholder="请输入企业等级（如 A/B）"
-            :error="errors.level"
-          />
         </div>
         <div class="form-actions">
           <BaseButton type="secondary" @click="handleCancel">取消</BaseButton>
@@ -60,15 +54,13 @@ const loading = ref(false);
 const formData = reactive({
   name: '',
   address: '',
-  contactPhone: '',
-  level: ''
+  contactPhone: ''
 });
 
 const errors = reactive({
   name: '',
   address: '',
-  contactPhone: '',
-  level: ''
+  contactPhone: ''
 });
 
 const validateForm = () => {
@@ -107,8 +99,7 @@ const handleSubmit = async () => {
     await api.updateCompanyInfo({
       name: formData.name,
       address: formData.address,
-      contactPhone: formData.contactPhone,
-      level: formData.level
+      contactPhone: formData.contactPhone
     }, token);
     showSuccess('企业信息更新成功');
   } catch (error) {
@@ -162,6 +153,13 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 24px;
+  margin-top: 32px;
+  justify-content: flex-end;
 }
 
 @media (max-width: 768px) {

@@ -281,4 +281,20 @@ public class CompanyAuthService {
         }
         return "PENDING";
     }
+
+    public Map<String, Object> updateCompanyInfo(String companyId, String companyName) {
+        String normalizedCompanyId = normalize(companyId);
+        String normalizedCompanyName = normalize(companyName);
+        if (normalizedCompanyId.isEmpty() || normalizedCompanyName.isEmpty()) {
+            throw new IllegalArgumentException("companyId 和 companyName 不能为空");
+        }
+
+        String sql = """
+                UPDATE company_auth
+                SET company_name = ?, updated_at = NOW()
+                WHERE company_id = ?
+                """;
+        jdbcTemplate.update(sql, normalizedCompanyName, normalizedCompanyId);
+        return queryStatus(normalizedCompanyId);
+    }
 }
