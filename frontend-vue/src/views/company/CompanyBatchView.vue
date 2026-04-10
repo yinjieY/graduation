@@ -7,20 +7,32 @@
       </div>
       
       <div class="batch-list">
-        <div class="batch-item" v-for="batch in batches" :key="batch.batchId">
+        <div class="batch-item" v-for="batch in batches" :key="batch.batchId" :class="{ 'batch-pending': batch.status === 'PENDING', 'batch-approved': batch.status === 'APPROVED', 'batch-rejected': batch.status === 'REJECTED' }">
           <div class="batch-info">
             <h3 class="batch-name">{{ batch.batchName }}</h3>
             <div class="batch-meta">
               <span class="meta-item">生产时间: {{ batch.productionDate }}</span>
               <span class="meta-item">数量: {{ batch.quantity }}</span>
-              <span class="meta-item">状态: {{ batch.status }}</span>
+              <span class="meta-item" :class="{ 'status-pending': batch.status === 'PENDING', 'status-approved': batch.status === 'APPROVED', 'status-rejected': batch.status === 'REJECTED' }">状态: {{ batch.status }}</span>
             </div>
             <div class="batch-description">{{ batch.description }}</div>
+            <div class="batch-review-info" v-if="batch.status === 'PENDING'">
+              <span class="review-status">审核状态: 待审核</span>
+              <span class="review-tip">请等待管理员审核通过后才能使用该批次</span>
+            </div>
+            <div class="batch-review-info" v-else-if="batch.status === 'APPROVED'">
+              <span class="review-status">审核状态: 已通过</span>
+              <span class="review-tip">该批次已审核通过，可以使用</span>
+            </div>
+            <div class="batch-review-info" v-else-if="batch.status === 'REJECTED'">
+              <span class="review-status">审核状态: 已拒绝</span>
+              <span class="review-tip">该批次审核被拒绝，请修改后重新提交</span>
+            </div>
           </div>
           <div class="batch-actions">
             <BaseButton type="primary" size="small" @click="handleEditBatch(batch)">编辑</BaseButton>
             <BaseButton type="error" size="small" @click="handleDeleteBatch(batch.batchId)">删除</BaseButton>
-            <BaseButton type="success" size="small" @click="handleGenerateQrCodes(batch.batchId)">生成码</BaseButton>
+            <BaseButton type="success" size="small" @click="handleGenerateQrCodes(batch.batchId)" :disabled="batch.status !== 'APPROVED'">生成码</BaseButton>
           </div>
         </div>
       </div>
@@ -98,6 +110,7 @@ import BaseInput from '../../components/BaseInput.vue';
 import BaseButton from '../../components/BaseButton.vue';
 import { useApi, handleApiError } from '../../composables/useApi';
 import { useNotification } from '../../composables/useNotification';
+import { clearCacheByUrl } from '../../api/http';
 
 const api = useApi();
 const { showSuccess, showError } = useNotification();
@@ -179,7 +192,7 @@ const handleSaveBatch = async () => {
     
     resetForm();
     showAddBatchDialog.value = false;
-    loadBatches();
+    await loadBatches();
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -209,7 +222,7 @@ const handleDeleteBatch = async (batchId) => {
     const token = localStorage.getItem('company_token');
     await api.deleteProductBatch(batchId, token);
     showSuccess('批次删除成功');
-    loadBatches();
+    await loadBatches();
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -234,6 +247,7 @@ const handleGenerateQrCodesSubmit = async () => {
     await api.generateQrCodes(currentBatchId.value, qrCodeCount.value, token);
     showSuccess('溯源码生成成功');
     showQrCodeDialog.value = false;
+    await loadBatches();
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -245,14 +259,21 @@ const loadBatches = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
+    
+    clearCacheByUrl('/trace/batch/list');
+    clearCacheByUrl('/trace/qs/list');
+    
     const data = await api.getProductBatchList(token);
+    const qrCodeList = await api.getQrCodeList(token);
+    const qrCodeBatchIds = new Set(qrCodeList.map(item => item.batchId));
+    
     batches.value = (data || []).map((item) => ({
       batchId: item.batchId,
       batchName: item.productionStandard || item.batchId,
       productionDate: item.productionDate ? String(item.productionDate).slice(0, 10) : '',
       quantity: item.totalQuantity,
       description: item.ingredients || '',
-      status: item.status || 'ACTIVE'
+      status: qrCodeBatchIds.has(item.batchId) ? (item.status || 'ACTIVE') : 'PENDING'
     }));
   } catch (error) {
     showError(handleApiError(error));
@@ -365,6 +386,71 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+/* 审核状态样式 */
+.batch-pending {
+  border-color: #f59e0b;
+  background-color: #fffbeb;
+}
+
+.batch-approved {
+  border-color: #10b981;
+  background-color: #ecfdf5;
+}
+
+.batch-rejected {
+  border-color: #ef4444;
+  background-color: #fef2f2;
+}
+
+.status-pending {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.status-approved {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.status-rejected {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.batch-review-info {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.batch-pending .batch-review-info {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+}
+
+.batch-approved .batch-review-info {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+}
+
+.batch-rejected .batch-review-info {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+}
+
+.review-status {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.review-tip {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 /* 对话框样式 */
 .dialog-overlay {
   position: fixed;
@@ -393,6 +479,15 @@ onMounted(() => {
   font-weight: 700;
   color: #334155;
   margin: 0 0 24px 0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
 }
 
 @media (max-width: 768px) {

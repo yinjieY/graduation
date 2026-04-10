@@ -45,8 +45,8 @@ public class QsCodeController {
 
     // 查询所有二维码
     @GetMapping("/list")
-    public R<?> list() {
-        return qsCodeService.listAll();
+    public R<?> list(@RequestParam(required = false) String companyId) {
+        return qsCodeService.listByCompanyId(companyId);
     }
 
     // 二维码生命周期管理（active/invalid/frozen/cancelled）

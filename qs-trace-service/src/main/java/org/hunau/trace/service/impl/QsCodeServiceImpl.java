@@ -204,6 +204,17 @@ public class QsCodeServiceImpl implements QsCodeService {
     }
 
     @Override
+    public R<?> listByCompanyId(String companyId) {
+        LambdaQueryWrapper<QsCode> wrapper = new LambdaQueryWrapper<QsCode>()
+                .orderByDesc(QsCode::getCreatedAt);
+        if (companyId != null && !companyId.trim().isEmpty()) {
+            wrapper.eq(QsCode::getCompanyId, companyId);
+        }
+        List<QsCode> qsCodes = qsCodeMapper.selectList(wrapper);
+        return R.ok(qsCodes);
+    }
+
+    @Override
     public R<?> changeStatus(String qsId, String status) {
         AssertUtil.notEmpty(qsId, "qsId不能为空");
         AssertUtil.notEmpty(status, "目标状态不能为空");

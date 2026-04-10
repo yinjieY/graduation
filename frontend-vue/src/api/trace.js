@@ -2,6 +2,16 @@ import { apiFetch, authHeaders } from './http';
 
 // 批次管理
 export function createProductBatch(payload, token) {
+  // 从localStorage获取companyUserInfo
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      payload.companyId = companyId;
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
   return apiFetch('/trace/batch/create', {
     method: 'POST',
     headers: {
@@ -13,10 +23,30 @@ export function createProductBatch(payload, token) {
 }
 
 export function getProductBatchList(token) {
+  // 从localStorage获取companyUserInfo
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/trace/batch/list?companyId=${encodeURIComponent(companyId)}`, { headers: authHeaders(token) });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
   return apiFetch('/trace/batch/list', { headers: authHeaders(token) });
 }
 
 export function updateProductBatch(payload, token) {
+  // 从localStorage获取companyUserInfo
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      payload.companyId = companyId;
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
   return apiFetch('/trace/batch/update', {
     method: 'PUT',
     headers: {
@@ -28,6 +58,19 @@ export function updateProductBatch(payload, token) {
 }
 
 export function deleteProductBatch(batchId, token) {
+  // 从localStorage获取companyUserInfo
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/trace/batch/delete/${encodeURIComponent(batchId)}?companyId=${encodeURIComponent(companyId)}`, {
+        method: 'DELETE',
+        headers: authHeaders(token)
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
   return apiFetch(`/trace/batch/delete/${encodeURIComponent(batchId)}`, {
     method: 'DELETE',
     headers: authHeaders(token)
@@ -47,6 +90,15 @@ export function generateQrCodes(batchId, count, token) {
 }
 
 export function getQrCodeList(token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/trace/qs/list?companyId=${encodeURIComponent(companyId)}`, { headers: authHeaders(token) });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
   return apiFetch('/trace/qs/list', { headers: authHeaders(token) });
 }
 

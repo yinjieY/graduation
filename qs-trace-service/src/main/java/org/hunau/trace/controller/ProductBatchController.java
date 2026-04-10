@@ -33,7 +33,7 @@ public class ProductBatchController {
 
     @DeleteMapping("/delete/{batchId}")
     @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
-    public R<?> delete(@PathVariable String batchId) {
+    public R<?> delete(@PathVariable String batchId, @RequestParam(required = false) String companyId) {
         return productBatchService.deleteBatch(batchId);
     }
 }
