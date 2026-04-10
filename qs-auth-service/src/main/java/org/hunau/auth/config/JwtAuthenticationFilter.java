@@ -19,9 +19,15 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
+    protected void doFilterInternal(HttpServletRequest request, 
+                                    HttpServletResponse response, 
                                     FilterChain filterChain) throws ServletException, IOException {
+        // 跳过 OPTIONS 请求的 JWT 验证
+        if ("OPTIONS".equals(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7).trim();
@@ -29,7 +35,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = JwtUtil.getUsername(token);
                 String role = JwtUtil.getRole(token);
 
-                UsernamePasswordAuthenticationToken authentication =
+                UsernamePasswordAuthenticationToken authentication = 
                         new UsernamePasswordAuthenticationToken(
                                 username,
                                 null,

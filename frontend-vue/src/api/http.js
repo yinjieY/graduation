@@ -1,5 +1,8 @@
 import { normalizeBearerToken } from './session';
 
+// 基础 API URL
+const BASE_URL = 'http://localhost:9090';
+
 // 请求缓存
 const cache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
@@ -69,8 +72,11 @@ const redirectToLogin = () => {
 };
 
 export async function apiFetch(url, options = {}) {
+  // 构建完整的 URL
+  const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`;
+  
   // 构建缓存键
-  const cacheKey = getCacheKey(url, options);
+  const cacheKey = getCacheKey(fullUrl, options);
   
   // 检查是否有缓存且未过期
   const cached = cache.get(cacheKey);
@@ -97,7 +103,7 @@ export async function apiFetch(url, options = {}) {
   // 创建请求Promise
   const requestPromise = (async () => {
     try {
-      const resp = await fetchWithRetry(url, { ...options, headers });
+      const resp = await fetchWithRetry(fullUrl, { ...options, headers });
       const contentType = resp.headers.get('content-type') || '';
       const data = contentType.includes('application/json') ? await resp.json() : await resp.text();
       

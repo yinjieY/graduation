@@ -1,3 +1,6 @@
+server:
+  port: 9095
+
 spring:
   application:
     name: qs-gateway-service
@@ -13,3 +16,65 @@ spring:
         refresh-enabled: true
       discovery:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - "http://localhost:5173"
+              - "http://localhost:5175"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+            maxAge: 3600
+      routes:
+        # 认证服务路由
+        - id: auth-service
+          uri: lb://qs-auth-service
+          predicates:
+            - Path=/auth/**
+        # 注册服务路由
+        - id: register-service
+          uri: lb://qs-auth-service
+          predicates:
+            - Path=/register/**
+        # 溯源服务路由
+        - id: trace-service
+          uri: lb://qs-trace-service
+          predicates:
+            - Path=/trace/**
+        # 预警服务路由
+        - id: alert-service
+          uri: lb://qs-alert-service
+          predicates:
+            - Path=/alert/**
+        # 扫码服务路由
+        - id: scan-service
+          uri: lb://qs-scan-service
+          predicates:
+            - Path=/scan/**
+        # 区块链存证服务路由
+        - id: block-service
+          uri: lb://qs-block-service
+          predicates:
+            - Path=/block/**
+
+# 应用安全配置
+app:
+  security:
+    jwtSecret: "your-secret-key-here"
+    authWhitelist:
+      - "/auth/**"
+      - "/register/**"
+      - "/trace/scan/**"
+      - "/trace/query/**"
+      - "/trace/qs/image/**"
+      - "/scan/report"
+      - "/scan/logs/**"
