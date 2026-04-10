@@ -7,7 +7,7 @@
         <label for="batch-select">选择批次：</label>
         <select id="batch-select" v-model="selectedBatchId" @change="loadQrCodes">
           <option value="">请选择批次</option>
-          <option v-for="batch in batches" :key="batch.id" :value="batch.id">
+          <option v-for="batch in batches" :key="batch.batchId" :value="batch.batchId">
             {{ batch.batchName }}
           </option>
         </select>
@@ -18,18 +18,18 @@
           <div class="qr-code-info">
             <div class="qr-code-id">{{ qrCode.id }}</div>
             <div class="qr-code-status" :class="`status-${qrCode.status}`">
-              {{ qrCode.status === 'ACTIVE' ? '激活' : qrCode.status === 'INACTIVE' ? '未激活' : '冻结' }}
+              {{ qrCode.status === 'ACTIVE' ? '激活' : qrCode.status === 'INVALID' ? '未激活' : '冻结' }}
             </div>
           </div>
           <div class="qr-code-actions">
             <BaseButton 
               :type="qrCode.status === 'ACTIVE' ? 'warning' : 'success'"
               size="small"
-              @click="handleUpdateStatus(qrCode.id, qrCode.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')"
+              @click="handleUpdateStatus(qrCode.id, qrCode.status === 'ACTIVE' ? 'invalid' : 'active')"
             >
               {{ qrCode.status === 'ACTIVE' ? '停用' : '激活' }}
             </BaseButton>
-            <BaseButton type="error" size="small" @click="handleUpdateStatus(qrCode.id, 'FROZEN')">
+            <BaseButton type="error" size="small" @click="handleUpdateStatus(qrCode.id, 'frozen')">
               冻结
             </BaseButton>
           </div>
@@ -78,7 +78,10 @@ const loadBatches = async () => {
     loading.value = true;
     const token = localStorage.getItem('company_token');
     const data = await api.getProductBatchList(token);
-    batches.value = data;
+    batches.value = (data || []).map((item) => ({
+      batchId: item.batchId,
+      batchName: item.productionStandard || item.batchId
+    }));
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -87,16 +90,21 @@ const loadBatches = async () => {
 };
 
 const loadQrCodes = async () => {
-  if (!selectedBatchId.value) {
-    qrCodes.value = [];
-    return;
-  }
-  
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
-    const data = await api.getQrCodeList(selectedBatchId.value, token);
-    qrCodes.value = data;
+    const data = await api.getQrCodeList(token);
+    const rows = (data || []).map((item) => ({
+      id: item.qsId,
+      batchId: item.batchId,
+      status: String(item.status || '').toUpperCase()
+    }));
+    // 如果选择了批次，过滤出该批次的二维码
+    if (selectedBatchId.value) {
+      qrCodes.value = rows.filter(qrCode => String(qrCode.batchId) === String(selectedBatchId.value));
+    } else {
+      qrCodes.value = rows;
+    }
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -194,7 +202,7 @@ onMounted(() => {
   color: #059669;
 }
 
-.status-INACTIVE {
+.status-INVALID {
   background: rgba(100, 116, 139, 0.1);
   color: #475569;
 }

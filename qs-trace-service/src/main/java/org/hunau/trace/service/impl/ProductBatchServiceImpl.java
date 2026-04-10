@@ -1,6 +1,7 @@
 package org.hunau.trace.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import jakarta.annotation.Resource;
 import org.hunau.common.R;
 import org.hunau.common.exception.BusinessException;
@@ -108,5 +109,65 @@ public class ProductBatchServiceImpl implements ProductBatchService {
         }
         List<ProductBatch> batches = productBatchMapper.selectList(wrapper);
         return R.ok(batches);
+    }
+
+    @Override
+    public R<?> updateBatch(ProductBatch batch) {
+        AssertUtil.notNull(batch, "批次信息不能为空");
+        AssertUtil.notEmpty(batch.getBatchId(), "batchId不能为空");
+
+        ProductBatch exist = productBatchMapper.selectById(batch.getBatchId());
+        if (exist == null) {
+            throw new BusinessException("批次不存在");
+        }
+
+        String effectiveCompanyId = resolveTargetCompanyId(exist.getCompanyId(), "修改生产批次");
+        if (!effectiveCompanyId.equals(exist.getCompanyId())) {
+            throw new BusinessException("无权限修改该批次");
+        }
+
+        LambdaUpdateWrapper<ProductBatch> updateWrapper = new LambdaUpdateWrapper<ProductBatch>()
+                .eq(ProductBatch::getBatchId, batch.getBatchId());
+        if (batch.getProductionDate() != null) {
+            updateWrapper.set(ProductBatch::getProductionDate, batch.getProductionDate());
+        }
+        if (batch.getIngredients() != null && !batch.getIngredients().isBlank()) {
+            updateWrapper.set(ProductBatch::getIngredients, batch.getIngredients().trim());
+        }
+        if (batch.getProductionStandard() != null && !batch.getProductionStandard().isBlank()) {
+            updateWrapper.set(ProductBatch::getProductionStandard, batch.getProductionStandard().trim());
+        }
+        if (batch.getTotalQuantity() != null) {
+            if (batch.getTotalQuantity() <= 0) {
+                throw new BusinessException("总数量必须大于0");
+            }
+            updateWrapper.set(ProductBatch::getTotalQuantity, batch.getTotalQuantity());
+        }
+
+        int affected = productBatchMapper.update(null, updateWrapper);
+        if (affected <= 0) {
+            throw new BusinessException("批次更新失败");
+        }
+        return R.ok(productBatchMapper.selectById(batch.getBatchId()));
+    }
+
+    @Override
+    public R<?> deleteBatch(String batchId) {
+        AssertUtil.notEmpty(batchId, "batchId不能为空");
+        ProductBatch exist = productBatchMapper.selectById(batchId.trim());
+        if (exist == null) {
+            throw new BusinessException("批次不存在");
+        }
+
+        String effectiveCompanyId = resolveTargetCompanyId(exist.getCompanyId(), "删除生产批次");
+        if (!effectiveCompanyId.equals(exist.getCompanyId())) {
+            throw new BusinessException("无权限删除该批次");
+        }
+
+        int affected = productBatchMapper.deleteById(batchId.trim());
+        if (affected <= 0) {
+            throw new BusinessException("批次删除失败");
+        }
+        return R.ok("删除成功");
     }
 }

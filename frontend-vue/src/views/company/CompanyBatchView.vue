@@ -3,11 +3,11 @@
     <div class="batch-management">
       <div class="page-header">
         <h1 class="page-title">生产批次管理</h1>
-        <BaseButton type="primary" icon="➕" @click="showAddBatchDialog = true">新增批次</BaseButton>
+        <BaseButton type="primary" icon="➕" @click="openCreateDialog">新增批次</BaseButton>
       </div>
       
       <div class="batch-list">
-        <div class="batch-item" v-for="batch in batches" :key="batch.id">
+        <div class="batch-item" v-for="batch in batches" :key="batch.batchId">
           <div class="batch-info">
             <h3 class="batch-name">{{ batch.batchName }}</h3>
             <div class="batch-meta">
@@ -19,8 +19,8 @@
           </div>
           <div class="batch-actions">
             <BaseButton type="primary" size="small" @click="handleEditBatch(batch)">编辑</BaseButton>
-            <BaseButton type="error" size="small" @click="handleDeleteBatch(batch.id)">删除</BaseButton>
-            <BaseButton type="success" size="small" @click="handleGenerateQrCodes(batch.id)">生成码</BaseButton>
+            <BaseButton type="error" size="small" @click="handleDeleteBatch(batch.batchId)">删除</BaseButton>
+            <BaseButton type="success" size="small" @click="handleGenerateQrCodes(batch.batchId)">生成码</BaseButton>
           </div>
         </div>
       </div>
@@ -113,6 +113,7 @@ const qrCodeCount = ref(100);
 const batches = ref([]);
 
 const formData = reactive({
+  batchId: '',
   batchName: '',
   productionDate: '',
   quantity: '',
@@ -160,15 +161,23 @@ const handleSaveBatch = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
-    
+    const payload = {
+      batchId: formData.batchId || undefined,
+      productionDate: formData.productionDate ? `${formData.productionDate}T00:00:00` : '',
+      ingredients: formData.description || formData.batchName,
+      productionStandard: formData.batchName,
+      totalQuantity: Number(formData.quantity)
+    };
+
     if (editingBatch.value) {
-      await api.updateProductBatch(editingBatch.value.id, formData, token);
+      await api.updateProductBatch(payload, token);
       showSuccess('批次更新成功');
     } else {
-      await api.createProductBatch(formData, token);
+      await api.createProductBatch(payload, token);
       showSuccess('批次创建成功');
     }
     
+    resetForm();
     showAddBatchDialog.value = false;
     loadBatches();
   } catch (error) {
@@ -180,7 +189,13 @@ const handleSaveBatch = async () => {
 
 const handleEditBatch = (batch) => {
   editingBatch.value = batch;
-  Object.assign(formData, batch);
+  Object.assign(formData, {
+    batchId: batch.batchId,
+    batchName: batch.batchName,
+    productionDate: batch.productionDate,
+    quantity: batch.quantity,
+    description: batch.description
+  });
   showAddBatchDialog.value = true;
 };
 
@@ -231,13 +246,36 @@ const loadBatches = async () => {
     loading.value = true;
     const token = localStorage.getItem('company_token');
     const data = await api.getProductBatchList(token);
-    batches.value = data;
+    batches.value = (data || []).map((item) => ({
+      batchId: item.batchId,
+      batchName: item.productionStandard || item.batchId,
+      productionDate: item.productionDate ? String(item.productionDate).slice(0, 10) : '',
+      quantity: item.totalQuantity,
+      description: item.ingredients || '',
+      status: item.status || 'ACTIVE'
+    }));
   } catch (error) {
     showError(handleApiError(error));
   } finally {
     loading.value = false;
   }
 };
+
+function resetForm() {
+  editingBatch.value = null;
+  Object.assign(formData, {
+    batchId: '',
+    batchName: '',
+    productionDate: '',
+    quantity: '',
+    description: ''
+  });
+}
+
+function openCreateDialog() {
+  resetForm();
+  showAddBatchDialog.value = true;
+}
 
 onMounted(() => {
   loadBatches();

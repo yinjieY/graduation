@@ -2,7 +2,7 @@ import { apiFetch, authHeaders } from './http';
 
 // 批次管理
 export function createProductBatch(payload, token) {
-  return apiFetch('/trace/product-batch', {
+  return apiFetch('/trace/batch/create', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -13,15 +13,11 @@ export function createProductBatch(payload, token) {
 }
 
 export function getProductBatchList(token) {
-  return apiFetch('/trace/product-batch/list', { headers: authHeaders(token) });
+  return apiFetch('/trace/batch/list', { headers: authHeaders(token) });
 }
 
-export function getProductBatchDetail(batchId, token) {
-  return apiFetch(`/trace/product-batch/${encodeURIComponent(batchId)}`, { headers: authHeaders(token) });
-}
-
-export function updateProductBatch(batchId, payload, token) {
-  return apiFetch(`/trace/product-batch/${encodeURIComponent(batchId)}`, {
+export function updateProductBatch(payload, token) {
+  return apiFetch('/trace/batch/update', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -32,7 +28,7 @@ export function updateProductBatch(batchId, payload, token) {
 }
 
 export function deleteProductBatch(batchId, token) {
-  return apiFetch(`/trace/product-batch/${encodeURIComponent(batchId)}`, {
+  return apiFetch(`/trace/batch/delete/${encodeURIComponent(batchId)}`, {
     method: 'DELETE',
     headers: authHeaders(token)
   });
@@ -40,22 +36,22 @@ export function deleteProductBatch(batchId, token) {
 
 // 溯源码管理
 export function generateQrCodes(batchId, count, token) {
-  return apiFetch('/trace/qrcode/generate', {
+  return apiFetch('/trace/qs/generate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(token)
     },
-    body: JSON.stringify({ batchId, count })
+    body: JSON.stringify({ batchId, maxAllowedScans: count })
   });
 }
 
-export function getQrCodeList(batchId, token) {
-  return apiFetch(`/trace/qrcode/list/${encodeURIComponent(batchId)}`, { headers: authHeaders(token) });
+export function getQrCodeList(token) {
+  return apiFetch('/trace/qs/list', { headers: authHeaders(token) });
 }
 
 export function updateQrCodeStatus(qrCodeId, status, token) {
-  return apiFetch(`/trace/qrcode/status/${encodeURIComponent(qrCodeId)}`, {
+  return apiFetch(`/trace/qs/${encodeURIComponent(qrCodeId)}/status`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -66,7 +62,7 @@ export function updateQrCodeStatus(qrCodeId, status, token) {
 }
 
 export function getQrCodeDetail(qrCodeId, token) {
-  return apiFetch(`/trace/qrcode/${encodeURIComponent(qrCodeId)}`, { headers: authHeaders(token) });
+  return apiFetch(`/trace/qs/get/${encodeURIComponent(qrCodeId)}`, { headers: authHeaders(token) });
 }
 
 // 企业信息管理
@@ -82,6 +78,35 @@ export function updateCompanyInfo(payload, token) {
       ...authHeaders(token)
     },
     body: JSON.stringify(payload)
+  });
+}
+
+// 企业管理
+export function createCompany(payload, token) {
+  return apiFetch('/trace/company/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(token)
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateCompany(payload, token) {
+  return apiFetch('/trace/company/update', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(token)
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getCompanyList(token) {
+  return apiFetch('/trace/company/list', {
+    headers: authHeaders(token)
   });
 }
 

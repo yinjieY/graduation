@@ -112,29 +112,77 @@ const loadStats = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
-    
-    // 加载扫码趋势
-    const scanTrendData = await api.getScanTrendStats({ days: timeRange.value }, token);
-    scanStats.value = scanTrendData;
-    
-    // 加载区域分布
-    const regionData = await api.getScanRegionStats(token);
-    regionStats.value = regionData;
-    
-    // 加载预警统计
-    const alertData = await api.getAlertStats(token);
-    alertStats.value = alertData;
-    
-    // 加载批次溯源率
-    // 这里假设后端提供了批次溯源率的API
-    // batchStats.value = await api.getBatchTraceRate(token);
-    // 暂时使用模拟数据
-    batchStats.value = [
-      { batchName: '批次1', traceRate: 85 },
-      { batchName: '批次2', traceRate: 92 },
-      { batchName: '批次3', traceRate: 78 },
-      { batchName: '批次4', traceRate: 95 }
-    ];
+
+    const [alertList, batchList, qrList] = await Promise.all([
+      api.getAlertList({}, token),
+      api.getProductBatchList(token),
+      api.getQrCodeList(token)
+    ]);
+
+    // 预警统计（按高/中/低映射红/黄/蓝）
+    const levelCounter = { red: 0, yellow: 0, blue: 0 };
+    (alertList || []).forEach((item) => {
+      const level = String(item.alertLevel || '').toUpperCase();
+      if (level === 'HIGH') levelCounter.red += 1;
+      else if (level === 'MEDIUM') levelCounter.yellow += 1;
+      else levelCounter.blue += 1;
+    });
+    alertStats.value = levelCounter;
+
+    // 扫码与区域统计：从二维码日志聚合
+    const days = Number(timeRange.value || 7);
+    const beginTs = Date.now() - days * 24 * 60 * 60 * 1000;
+    const dailyMap = new Map();
+    const regionMap = new Map();
+    const batchScanMap = new Map();
+
+    const qrIds = (qrList || []).map((item) => item.qsId).filter(Boolean).slice(0, 200);
+    const logsRows = await Promise.all(qrIds.map((qsId) => api.getScanLogs(qsId, token).catch(() => [])));
+    logsRows.flat().forEach((log) => {
+      const ts = new Date(log.scanTime || log.createdAt || Date.now()).getTime();
+      if (Number.isNaN(ts) || ts < beginTs) {
+        return;
+      }
+      const day = new Date(ts).toISOString().slice(0, 10);
+      dailyMap.set(day, (dailyMap.get(day) || 0) + 1);
+
+      const region = log.city || log.province || '未知地区';
+      regionMap.set(region, (regionMap.get(region) || 0) + 1);
+
+      const batchId = log.batchId || '';
+      if (batchId) {
+        batchScanMap.set(batchId, (batchScanMap.get(batchId) || 0) + 1);
+      }
+    });
+
+    scanStats.value = {
+      dailyScans: Array.from(dailyMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, count]) => ({ date, count }))
+    };
+
+    regionStats.value = Array.from(regionMap.entries())
+      .map(([region, count]) => ({ region, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    // 批次溯源率 = 扫码数 / 发码量
+    const qrBatchCountMap = new Map();
+    (qrList || []).forEach((item) => {
+      const batchId = item.batchId;
+      if (batchId) {
+        qrBatchCountMap.set(batchId, (qrBatchCountMap.get(batchId) || 0) + 1);
+      }
+    });
+    batchStats.value = (batchList || []).map((batch) => {
+      const issued = qrBatchCountMap.get(batch.batchId) || 0;
+      const scans = batchScanMap.get(batch.batchId) || 0;
+      const rate = issued > 0 ? Math.min(100, Math.round((scans / issued) * 100)) : 0;
+      return {
+        batchName: batch.productionStandard || batch.batchId,
+        traceRate: rate
+      };
+    });
   } catch (error) {
     showError(handleApiError(error));
   } finally {

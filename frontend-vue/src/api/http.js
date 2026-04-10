@@ -15,6 +15,10 @@ function getCacheKey(url, options) {
   return `${url}_${JSON.stringify(options)}`;
 }
 
+function isGetRequest(options = {}) {
+  return (options.method || 'GET').toUpperCase() === 'GET';
+}
+
 // 带超时的fetch
 function fetchWithTimeout(url, options, timeout = 30000) {
   return Promise.race([
@@ -33,7 +37,7 @@ async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
     } catch (error) {
       if (i === retries - 1) throw error;
       // 只对网络错误进行重试
-      if (!error.message.includes('网络') && !error.message.includes('timeout')) throw error;
+      if (!error.message.includes('网络') && !error.message.includes('timeout') && !error.message.includes('超时')) throw error;
       await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
     }
   }
@@ -53,22 +57,12 @@ const clearAllTokens = () => {
 
 // 跳转到登录页
 const redirectToLogin = () => {
-  // 动态导入router，避免循环依赖
-  import('vue-router').then(({ createRouter, createWebHistory }) => {
-    const router = createRouter({
-      history: createWebHistory(),
-      routes: []
-    });
-    
-    // 根据当前路径判断跳转到哪个登录页
-    if (window.location.pathname.includes('/admin/')) {
-      window.location.href = '/admin/login';
-    } else if (window.location.pathname.includes('/company/')) {
-      window.location.href = '/company/login';
-    } else {
-      window.location.href = '/admin/login';
-    }
-  });
+  const current = `${window.location.pathname}${window.location.hash}`;
+  if (current.includes('/company/')) {
+    window.location.hash = '#/company/login';
+    return;
+  }
+  window.location.hash = '#/admin/login';
 };
 
 export async function apiFetch(url, options = {}) {
@@ -78,10 +72,14 @@ export async function apiFetch(url, options = {}) {
   // 构建缓存键
   const cacheKey = getCacheKey(fullUrl, options);
   
+  const shouldUseCache = isGetRequest(options);
+
   // 检查是否有缓存且未过期
-  const cached = cache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return cached.data;
+  if (shouldUseCache) {
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
   }
   
   // 检查是否有相同请求正在进行
@@ -92,9 +90,13 @@ export async function apiFetch(url, options = {}) {
   // 获取token并添加到请求头
   const token = getToken();
   const headers = {
-    'Content-Type': 'application/json',
     ...options.headers
   };
+
+  // Let browser auto-fill multipart boundary for FormData.
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
   
   if (token) {
     headers['Authorization'] = normalizeBearerToken(token);
@@ -127,11 +129,13 @@ export async function apiFetch(url, options = {}) {
         throw error;
       }
       
-      // 缓存成功的响应
-      cache.set(cacheKey, {
-        data,
-        timestamp: Date.now()
-      });
+      // 仅缓存GET成功响应
+      if (shouldUseCache) {
+        cache.set(cacheKey, {
+          data,
+          timestamp: Date.now()
+        });
+      }
       
       return data;
     } finally {

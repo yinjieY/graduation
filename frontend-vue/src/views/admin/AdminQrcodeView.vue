@@ -106,6 +106,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue';
+import { getQrCodeList, updateQrCodeStatus } from '../../api/trace';
 import { getToken } from '../../api/session';
 import Layout from '../../components/Layout.vue';
 
@@ -121,20 +122,32 @@ const queryForm = ref({
   status: ''
 });
 
+function normalizeStatus(status) {
+  return String(status || '').toUpperCase();
+}
+
+function toViewModel(item) {
+  return {
+    qrcodeId: item.qsId || item.qrcodeId || '-',
+    companyId: item.companyId || '-',
+    companyName: item.companyName || '-',
+    status: normalizeStatus(item.status),
+    applyTime: item.createdAt || item.createTime || '-',
+    createTime: item.createdAt || item.createTime || '-'
+  };
+}
+
+async function fetchQrcodes() {
+  const res = await getQrCodeList(token.value);
+  return (res.data || []).map(toViewModel);
+}
+
 async function loadPendingQrcodes() {
   loading.value = true;
   error.value = '';
   try {
-    // 假设后端有获取待审二维码的接口
-    // 这里暂时使用模拟数据，实际项目中需要替换为真实接口
-    // const res = await apiFetch('/qrcode/pending', { headers: authHeaders(token.value) });
-    // pendingQrcodes.value = res.data || [];
-    
-    // 模拟数据
-    pendingQrcodes.value = [
-      { qrcodeId: 'Q1001', companyId: '1001', companyName: '攸县香干食品有限公司', applyTime: '2026-04-01 10:00:00' },
-      { qrcodeId: 'Q1002', companyId: '1003', companyName: '株洲市豆制品有限公司', applyTime: '2026-04-02 14:30:00' }
-    ];
+    const rows = await fetchQrcodes();
+    pendingQrcodes.value = rows.filter((item) => item.status === 'PENDING');
   } catch (err) {
     console.error('加载待审二维码失败:', err);
     error.value = `加载失败: ${err.message || '未知错误'}`;
@@ -147,18 +160,7 @@ async function loadAllQrcodes() {
   loading.value = true;
   error.value = '';
   try {
-    // 假设后端有获取所有二维码的接口
-    // 这里暂时使用模拟数据，实际项目中需要替换为真实接口
-    // const res = await apiFetch('/qrcode/all', { headers: authHeaders(token.value) });
-    // qrcodes.value = res.data || [];
-    
-    // 模拟数据
-    qrcodes.value = [
-      { qrcodeId: 'Q1001', companyId: '1001', companyName: '攸县香干食品有限公司', status: 'PENDING', createTime: '2026-04-01 10:00:00' },
-      { qrcodeId: 'Q1002', companyId: '1003', companyName: '株洲市豆制品有限公司', status: 'PENDING', createTime: '2026-04-02 14:30:00' },
-      { qrcodeId: 'Q1003', companyId: '1001', companyName: '攸县香干食品有限公司', status: 'ACTIVE', createTime: '2026-03-15 09:00:00' },
-      { qrcodeId: 'Q1004', companyId: '1002', companyName: '湖南特产食品厂', status: 'FROZEN', createTime: '2026-03-20 16:00:00' }
-    ];
+    qrcodes.value = await fetchQrcodes();
   } catch (err) {
     console.error('加载二维码列表失败:', err);
     error.value = `加载失败: ${err.message || '未知错误'}`;
@@ -171,23 +173,20 @@ async function searchQrcodes() {
   loading.value = true;
   error.value = '';
   try {
-    // 假设后端有二维码查询接口
-    // 这里暂时使用模拟数据，实际项目中需要替换为真实接口
-    // const res = await apiFetch('/qrcode/search', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     ...authHeaders(token.value)
-    //   },
-    //   body: JSON.stringify(queryForm.value)
-    // });
-    // qrcodes.value = res.data || [];
-    
-    // 模拟数据
-    qrcodes.value = [
-      { qrcodeId: 'Q1001', companyId: '1001', companyName: '攸县香干食品有限公司', status: 'PENDING', createTime: '2026-04-01 10:00:00' },
-      { qrcodeId: 'Q1003', companyId: '1001', companyName: '攸县香干食品有限公司', status: 'ACTIVE', createTime: '2026-03-15 09:00:00' }
-    ];
+    let rows = await fetchQrcodes();
+    if (queryForm.value.qrcodeId) {
+      rows = rows.filter((item) => String(item.qrcodeId).includes(queryForm.value.qrcodeId));
+    }
+    if (queryForm.value.companyId) {
+      rows = rows.filter((item) => String(item.companyId).includes(queryForm.value.companyId));
+    }
+    if (queryForm.value.companyName) {
+      rows = rows.filter((item) => String(item.companyName).includes(queryForm.value.companyName));
+    }
+    if (queryForm.value.status) {
+      rows = rows.filter((item) => item.status === queryForm.value.status);
+    }
+    qrcodes.value = rows;
   } catch (err) {
     console.error('查询二维码失败:', err);
     error.value = `查询失败: ${err.message || '未知错误'}`;
@@ -199,22 +198,11 @@ async function searchQrcodes() {
 async function reviewQrcode(qrcodeId, approved) {
   loading.value = true;
   try {
-    // 假设后端有二维码审核接口
-    // await apiFetch(`/qrcode/review/${encodeURIComponent(qrcodeId)}`, {
-    //   method: 'PUT',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     ...authHeaders(token.value)
-    //   },
-    //   body: JSON.stringify({ approved })
-    // });
-    
-    // 模拟审核成功
-    console.log(`审核二维码 ${qrcodeId}: ${approved ? '通过' : '拒绝'}`);
+    await updateQrCodeStatus(qrcodeId, approved ? 'active' : 'invalid', token.value);
     await loadPendingQrcodes();
     await loadAllQrcodes();
-  } catch (error) {
-    console.error('审核二维码失败:', error);
+  } catch (err) {
+    error.value = `审核二维码失败: ${err.message || '未知错误'}`;
   } finally {
     loading.value = false;
   }
@@ -223,30 +211,20 @@ async function reviewQrcode(qrcodeId, approved) {
 async function freezeQrcode(qrcodeId, frozen) {
   loading.value = true;
   try {
-    // 假设后端有二维码冻结/解冻接口
-    // await apiFetch(`/qrcode/status/${encodeURIComponent(qrcodeId)}`, {
-    //   method: 'PUT',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     ...authHeaders(token.value)
-    //   },
-    //   body: JSON.stringify({ status: frozen ? 'FROZEN' : 'ACTIVE' })
-    // });
-    
-    // 模拟冻结/解冻成功
-    console.log(`${frozen ? '冻结' : '解冻'}二维码 ${qrcodeId}`);
+    await updateQrCodeStatus(qrcodeId, frozen ? 'frozen' : 'active', token.value);
     await loadAllQrcodes();
-  } catch (error) {
-    console.error('操作二维码失败:', error);
+  } catch (err) {
+    error.value = `操作二维码失败: ${err.message || '未知错误'}`;
   } finally {
     loading.value = false;
   }
 }
 
 function viewQrcodeDetail(qrcodeId) {
-  // 查看二维码详情，实际项目中可以跳转到详情页面或显示弹窗
-  console.log('查看二维码详情:', qrcodeId);
-  // 这里可以添加详情查看逻辑
+  const hit = qrcodes.value.find((item) => String(item.qrcodeId) === String(qrcodeId));
+  if (hit) {
+    error.value = `二维码详情: ${hit.qrcodeId} | 企业: ${hit.companyId} | 状态: ${hit.status} | 创建时间: ${hit.createTime}`;
+  }
 }
 
 onMounted(async () => {

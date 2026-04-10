@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { login, registerAdmin, registerCompany } from '../api/auth';
 import { useNotification } from './useNotification';
@@ -50,6 +50,8 @@ export function useAuth() {
       if (response.code === 200 && response.data) {
         const token = response.data;
         setToken(role, token);
+        const payload = parseJwtPayload(token);
+        localStorage.setItem(`${role}UserInfo`, JSON.stringify(payload));
         isAuthenticated.value = true;
         userRole.value = role;
         showSuccess('登录成功');
@@ -71,6 +73,26 @@ export function useAuth() {
       return false;
     } finally {
       loading.value = false;
+    }
+  };
+
+  const parseJwtPayload = (rawToken) => {
+    try {
+      const token = String(rawToken || '').replace(/^Bearer\s+/i, '');
+      const parts = token.split('.');
+      if (parts.length < 2) {
+        return {};
+      }
+      const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = decodeURIComponent(
+        atob(payload)
+          .split('')
+          .map((ch) => `%${(`00${ch.charCodeAt(0).toString(16)}`).slice(-2)}`)
+          .join('')
+      );
+      return JSON.parse(decoded);
+    } catch (error) {
+      return {};
     }
   };
   
@@ -105,6 +127,7 @@ export function useAuth() {
   // 登出
   const handleLogout = (role) => {
     clearToken(role);
+    localStorage.removeItem(`${role}UserInfo`);
     isAuthenticated.value = false;
     userRole.value = '';
     showSuccess('登出成功');

@@ -10,12 +10,43 @@ export function getAlertList(params, token) {
   return apiFetch(`/alert/list?${query}`, { headers: authHeaders(token) });
 }
 
-export function getAlertDetail(alertId, token) {
-  return apiFetch(`/alert/detail/${encodeURIComponent(alertId)}`, { headers: authHeaders(token) });
+// 规则管理
+export function getAlertRules(token) {
+  return apiFetch('/alert/rules', { headers: authHeaders(token) });
 }
 
-export function submitAlertAppeal(alertId, payload, token) {
-  return apiFetch(`/alert/appeal/${encodeURIComponent(alertId)}`, {
+export function updateRuleThreshold(ruleId, threshold, token) {
+  return apiFetch(`/alert/rules/${encodeURIComponent(ruleId)}/threshold`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(token)
+    },
+    body: JSON.stringify({ threshold })
+  });
+}
+
+export function updateRuleStatus(ruleId, status, token) {
+  return apiFetch(`/alert/rules/${encodeURIComponent(ruleId)}/status`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(token)
+    },
+    body: JSON.stringify({ status })
+  });
+}
+
+export function reloadRules(token) {
+  return apiFetch('/alert/rules/reload', {
+    method: 'POST',
+    headers: authHeaders(token)
+  });
+}
+
+// 风险评估
+export function evaluateRisk(payload, token) {
+  return apiFetch('/alert/evaluate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -23,26 +54,5 @@ export function submitAlertAppeal(alertId, payload, token) {
     },
     body: JSON.stringify(payload)
   });
-}
-
-export function getAlertStats(token) {
-  return apiFetch('/alert/stats', { headers: authHeaders(token) });
-}
-
-// 管理员预警审批
-export function reviewAlert(alertId, approved, token) {
-  return apiFetch(`/alert/review/${encodeURIComponent(alertId)}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(token)
-    },
-    body: JSON.stringify({ approved })
-  });
-}
-
-export function getGlobalAlertList(params, token) {
-  const query = new URLSearchParams(params).toString();
-  return apiFetch(`/alert/admin/list?${query}`, { headers: authHeaders(token) });
 }
 

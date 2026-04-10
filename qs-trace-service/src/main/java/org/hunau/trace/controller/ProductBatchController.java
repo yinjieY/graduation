@@ -24,4 +24,16 @@ public class ProductBatchController {
     public R<?> list(@RequestParam(required = false) String companyId) {
         return productBatchService.listBatches(companyId);
     }
+
+    @PutMapping("/update")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<?> update(@RequestBody ProductBatch batch) {
+        return productBatchService.updateBatch(batch);
+    }
+
+    @DeleteMapping("/delete/{batchId}")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<?> delete(@PathVariable String batchId) {
+        return productBatchService.deleteBatch(batchId);
+    }
 }

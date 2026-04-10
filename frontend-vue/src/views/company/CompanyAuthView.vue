@@ -11,6 +11,7 @@
           <h3>认证信息</h3>
         </div>
         <div class="form-group">
+          <input v-model="queryCompanyId" placeholder="企业ID（用于查询状态）" />
           <input v-model="applyForm.companyName" placeholder="企业名称" />
           <input v-model="applyForm.remark" placeholder="申请备注（可选）" />
         </div>
@@ -38,17 +39,12 @@ const loading = ref(false);
 const statusText = ref('未查询');
 const applyForm = reactive({ companyName: '', remark: '' });
 const token = ref(getToken('company'));
-
-// 从localStorage获取登录时的用户信息，包括companyId
-const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
-const companyId = ref(userInfo.companyId || '');
+const queryCompanyId = ref('');
 
 async function onApply() {
   loading.value = true;
   try {
-    // 提交申请时，companyId应该从登录信息中获取，而不是用户输入
     const formData = {
-      companyId: companyId.value,
       companyName: applyForm.companyName,
       remark: applyForm.remark
     };
@@ -64,13 +60,13 @@ async function onApply() {
 }
 
 async function onQueryStatus() {
-  if (!companyId.value) {
-    statusText.value = '请先登录获取企业信息';
+  if (!queryCompanyId.value) {
+    statusText.value = '请先输入企业ID';
     return;
   }
   loading.value = true;
   try {
-    const res = await queryCompanyStatus(companyId.value, token.value);
+    const res = await queryCompanyStatus(queryCompanyId.value, token.value);
     if (res.code === 200 && res.data) {
       statusText.value = `${res.data.statusText || ''} ${res.data.remark || ''}`.trim();
     }

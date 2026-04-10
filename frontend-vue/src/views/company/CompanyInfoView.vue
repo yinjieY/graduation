@@ -19,32 +19,17 @@
             required
           />
           <BaseInput
-            v-model="formData.contact"
+            v-model="formData.contactPhone"
             label="联系人"
-            placeholder="请输入联系人姓名"
-            :error="errors.contact"
-            required
-          />
-          <BaseInput
-            v-model="formData.phone"
-            label="联系电话"
             placeholder="请输入联系电话"
-            :error="errors.phone"
+            :error="errors.contactPhone"
             required
           />
           <BaseInput
-            v-model="formData.licenseNumber"
-            label="营业执照号"
-            placeholder="请输入营业执照号"
-            :error="errors.licenseNumber"
-            required
-          />
-          <BaseInput
-            v-model="formData.productionStandard"
-            label="生产标准"
-            placeholder="请输入生产标准"
-            :error="errors.productionStandard"
-            required
+            v-model="formData.level"
+            label="企业等级"
+            placeholder="请输入企业等级（如 A/B）"
+            :error="errors.level"
           />
         </div>
         <div class="form-actions">
@@ -74,19 +59,15 @@ const loading = ref(false);
 const formData = reactive({
   name: '',
   address: '',
-  contact: '',
-  phone: '',
-  licenseNumber: '',
-  productionStandard: ''
+  contactPhone: '',
+  level: ''
 });
 
 const errors = reactive({
   name: '',
   address: '',
-  contact: '',
-  phone: '',
-  licenseNumber: '',
-  productionStandard: ''
+  contactPhone: '',
+  level: ''
 });
 
 const validateForm = () => {
@@ -106,20 +87,8 @@ const validateForm = () => {
     errors.address = '请输入企业地址';
     isValid = false;
   }
-  if (!formData.contact) {
-    errors.contact = '请输入联系人';
-    isValid = false;
-  }
-  if (!formData.phone) {
-    errors.phone = '请输入联系电话';
-    isValid = false;
-  }
-  if (!formData.licenseNumber) {
-    errors.licenseNumber = '请输入营业执照号';
-    isValid = false;
-  }
-  if (!formData.productionStandard) {
-    errors.productionStandard = '请输入生产标准';
+  if (!formData.contactPhone) {
+    errors.contactPhone = '请输入联系电话';
     isValid = false;
   }
   
@@ -134,7 +103,12 @@ const handleSubmit = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
-    await api.updateCompanyInfo(formData, token);
+    await api.updateCompanyInfo({
+      name: formData.name,
+      address: formData.address,
+      contactPhone: formData.contactPhone,
+      level: formData.level
+    }, token);
     showSuccess('企业信息更新成功');
   } catch (error) {
     showError(handleApiError(error));

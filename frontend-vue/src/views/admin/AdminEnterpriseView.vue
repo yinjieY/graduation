@@ -88,6 +88,7 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import { getPending, reviewCompany } from '../../api/auth';
+import { getCompanyList } from '../../api/trace';
 import { getToken } from '../../api/session';
 import Layout from '../../components/Layout.vue';
 
@@ -116,18 +117,12 @@ async function loadAllCompanies() {
   loading.value = true;
   error.value = '';
   try {
-    // 假设后端有获取所有企业的接口
-    // 这里暂时使用模拟数据，实际项目中需要替换为真实接口
-    // const res = await apiFetch('/auth/company/all', { headers: authHeaders(token.value) });
-    // companies.value = res.data || [];
-    
-    // 模拟数据
-    companies.value = [
-      { companyId: '1001', companyName: '攸县香干食品有限公司', status: 'APPROVED' },
-      { companyId: '1002', companyName: '湖南特产食品厂', status: 'APPROVED' },
-      { companyId: '1003', companyName: '株洲市豆制品有限公司', status: 'PENDING' },
-      { companyId: '1004', companyName: '攸县传统食品加工坊', status: 'REJECTED' }
-    ];
+    const res = await getCompanyList(token.value);
+    companies.value = (res.data || []).map((item) => ({
+      ...item,
+      companyName: item.name || item.companyName || '-',
+      status: Number(item.status) === 1 ? 'APPROVED' : 'REJECTED'
+    }));
   } catch (err) {
     console.error('加载企业列表失败:', err);
     error.value = `加载失败: ${err.message || '未知错误'}`;
@@ -140,23 +135,22 @@ async function searchCompanies() {
   loading.value = true;
   error.value = '';
   try {
-    // 假设后端有企业查询接口
-    // 这里暂时使用模拟数据，实际项目中需要替换为真实接口
-    // const res = await apiFetch('/auth/company/search', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     ...authHeaders(token.value)
-    //   },
-    //   body: JSON.stringify(queryForm.value)
-    // });
-    // companies.value = res.data || [];
+    const res = await getCompanyList(token.value);
+    let companyList = (res.data || []).map((item) => ({
+      ...item,
+      companyName: item.name || item.companyName || '-',
+      status: Number(item.status) === 1 ? 'APPROVED' : 'REJECTED'
+    }));
+
+    // 前端过滤
+    if (queryForm.value.companyId) {
+      companyList = companyList.filter(company => String(company.companyId || '').includes(queryForm.value.companyId));
+    }
+    if (queryForm.value.companyName) {
+      companyList = companyList.filter(company => String(company.name || company.companyName || '').includes(queryForm.value.companyName));
+    }
     
-    // 模拟数据
-    companies.value = [
-      { companyId: '1001', companyName: '攸县香干食品有限公司', status: 'APPROVED' },
-      { companyId: '1003', companyName: '株洲市豆制品有限公司', status: 'PENDING' }
-    ];
+    companies.value = companyList;
   } catch (err) {
     console.error('查询企业失败:', err);
     error.value = `查询失败: ${err.message || '未知错误'}`;
@@ -179,9 +173,10 @@ async function review(companyId, approved) {
 }
 
 function viewCompanyDetail(companyId) {
-  // 查看企业详情，实际项目中可以跳转到详情页面或显示弹窗
-  console.log('查看企业详情:', companyId);
-  // 这里可以添加详情查看逻辑
+  const hit = companies.value.find((item) => String(item.companyId) === String(companyId));
+  if (hit) {
+    error.value = `企业详情: ${hit.name || hit.companyName || '-'} | 地址: ${hit.address || '-'} | 联系电话: ${hit.contactPhone || '-'}`;
+  }
 }
 
 onMounted(async () => {

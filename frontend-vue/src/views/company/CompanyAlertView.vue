@@ -6,16 +6,14 @@
       <div class="alert-filter">
         <select v-model="filterLevel" @change="loadAlerts">
           <option value="">全部级别</option>
-          <option value="RED">红色预警</option>
-          <option value="YELLOW">黄色预警</option>
-          <option value="BLUE">蓝色预警</option>
+          <option value="HIGH">高风险</option>
+          <option value="MEDIUM">中风险</option>
+          <option value="LOW">低风险</option>
         </select>
         <select v-model="filterStatus" @change="loadAlerts">
           <option value="">全部状态</option>
-          <option value="PENDING">待处理</option>
-          <option value="PROCESSING">处理中</option>
-          <option value="RESOLVED">已解决</option>
-          <option value="REJECTED">已驳回</option>
+          <option value="OPEN">未闭环</option>
+          <option value="CLOSED">已闭环</option>
         </select>
       </div>
       
@@ -23,10 +21,10 @@
         <div class="alert-item" v-for="alert in alerts" :key="alert.id" :class="`alert-${alert.level}`">
           <div class="alert-header">
             <div class="alert-level" :class="`level-${alert.level}`">
-              {{ alert.level === 'RED' ? '红色预警' : alert.level === 'YELLOW' ? '黄色预警' : '蓝色预警' }}
+              {{ alert.level === 'HIGH' ? '高风险' : alert.level === 'MEDIUM' ? '中风险' : '低风险' }}
             </div>
             <div class="alert-status" :class="`status-${alert.status}`">
-              {{ alert.status === 'PENDING' ? '待处理' : alert.status === 'PROCESSING' ? '处理中' : alert.status === 'RESOLVED' ? '已解决' : '已驳回' }}
+              {{ alert.status === 'OPEN' ? '未闭环' : '已闭环' }}
             </div>
           </div>
           <div class="alert-content">
@@ -39,7 +37,6 @@
           </div>
           <div class="alert-actions">
             <BaseButton type="primary" size="small" @click="handleViewDetail(alert)">查看详情</BaseButton>
-            <BaseButton v-if="alert.status === 'PENDING'" type="success" size="small" @click="handleAppeal(alert)">申诉</BaseButton>
           </div>
         </div>
       </div>
@@ -52,13 +49,13 @@
             <div class="detail-item">
               <label>预警级别:</label>
               <span :class="`level-${currentAlert.level}`">
-                {{ currentAlert.level === 'RED' ? '红色预警' : currentAlert.level === 'YELLOW' ? '黄色预警' : '蓝色预警' }}
+                {{ currentAlert.level === 'HIGH' ? '高风险' : currentAlert.level === 'MEDIUM' ? '中风险' : '低风险' }}
               </span>
             </div>
             <div class="detail-item">
               <label>预警状态:</label>
               <span :class="`status-${currentAlert.status}`">
-                {{ currentAlert.status === 'PENDING' ? '待处理' : currentAlert.status === 'PROCESSING' ? '处理中' : currentAlert.status === 'RESOLVED' ? '已解决' : '已驳回' }}
+                {{ currentAlert.status === 'OPEN' ? '未闭环' : '已闭环' }}
               </span>
             </div>
             <div class="detail-item">
@@ -92,22 +89,6 @@
         </div>
       </div>
       
-      <!-- 申诉对话框 -->
-      <div v-if="showAppealDialog" class="dialog-overlay" @click="showAppealDialog = false">
-        <div class="dialog-content" @click.stop>
-          <h2>预警申诉</h2>
-          <BaseForm @submit="handleAppealSubmit">
-            <div class="form-group">
-              <label>申诉理由</label>
-              <textarea v-model="appealReason" placeholder="请输入申诉理由" rows="4"></textarea>
-            </div>
-            <div class="form-actions">
-              <BaseButton type="secondary" @click="showAppealDialog = false">取消</BaseButton>
-              <BaseButton type="primary" :loading="submittingAppeal" @click="handleAppealSubmit">提交申诉</BaseButton>
-            </div>
-          </BaseForm>
-        </div>
-      </div>
     </div>
   </Layout>
 </template>
@@ -115,64 +96,49 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import Layout from '../../components/Layout.vue';
-import BaseForm from '../../components/BaseForm.vue';
 import BaseButton from '../../components/BaseButton.vue';
 import { useApi, handleApiError } from '../../composables/useApi';
 import { useNotification } from '../../composables/useNotification';
 
 const api = useApi();
-const { showSuccess, showError } = useNotification();
+const { showError } = useNotification();
 
 const loading = ref(false);
-const submittingAppeal = ref(false);
 const showDetailDialog = ref(false);
-const showAppealDialog = ref(false);
 const filterLevel = ref('');
 const filterStatus = ref('');
 const currentAlert = ref({});
-const appealReason = ref('');
 const alerts = ref([]);
+
+function mapAlert(item) {
+  return {
+    id: item.alertId,
+    level: String(item.alertLevel || 'LOW').toUpperCase(),
+    status: String(item.status || 'OPEN').toUpperCase(),
+    title: item.reason || '风险预警',
+    description: item.detail || '-',
+    qsId: item.qsId || '-',
+    createdAt: item.createdAt || '-',
+    processedAt: item.status === 'CLOSED' ? item.createdAt : '',
+    processNote: item.actionResult || ''
+  };
+}
 
 const handleViewDetail = (alert) => {
   currentAlert.value = alert;
   showDetailDialog.value = true;
 };
 
-const handleAppeal = (alert) => {
-  currentAlert.value = alert;
-  appealReason.value = '';
-  showAppealDialog.value = true;
-};
-
-const handleAppealSubmit = async () => {
-  if (!appealReason.value) {
-    showError('请输入申诉理由');
-    return;
-  }
-  
-  try {
-    submittingAppeal.value = true;
-    const token = localStorage.getItem('company_token');
-    await api.submitAlertAppeal(currentAlert.value.id, { reason: appealReason.value }, token);
-    showSuccess('申诉提交成功');
-    showAppealDialog.value = false;
-    loadAlerts();
-  } catch (error) {
-    showError(handleApiError(error));
-  } finally {
-    submittingAppeal.value = false;
-  }
-};
 
 const loadAlerts = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
-    const params = {};
-    if (filterLevel.value) params.level = filterLevel.value;
-    if (filterStatus.value) params.status = filterStatus.value;
-    const data = await api.getAlertList(params, token);
-    alerts.value = data;
+    const rows = await api.getAlertList({}, token);
+    alerts.value = (rows || [])
+      .map(mapAlert)
+      .filter((item) => !filterLevel.value || item.level === filterLevel.value)
+      .filter((item) => !filterStatus.value || item.status === filterStatus.value);
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -236,15 +202,15 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.alert-RED {
+.alert-HIGH {
   border-left: 4px solid #ef4444;
 }
 
-.alert-YELLOW {
+.alert-MEDIUM {
   border-left: 4px solid #f59e0b;
 }
 
-.alert-BLUE {
+.alert-LOW {
   border-left: 4px solid #3b82f6;
 }
 
@@ -262,17 +228,17 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.level-RED {
+.level-HIGH {
   background: rgba(239, 68, 68, 0.1);
   color: #dc2626;
 }
 
-.level-YELLOW {
+.level-MEDIUM {
   background: rgba(245, 158, 11, 0.1);
   color: #d97706;
 }
 
-.level-BLUE {
+.level-LOW {
   background: rgba(59, 130, 246, 0.1);
   color: #2563eb;
 }
@@ -284,25 +250,16 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.status-PENDING {
+.status-OPEN {
   background: rgba(100, 116, 139, 0.1);
   color: #475569;
 }
 
-.status-PROCESSING {
-  background: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
-}
-
-.status-RESOLVED {
+.status-CLOSED {
   background: rgba(16, 185, 129, 0.1);
   color: #059669;
 }
 
-.status-REJECTED {
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
-}
 
 .alert-content {
   margin-bottom: 16px;
@@ -399,33 +356,6 @@ onMounted(() => {
   word-break: break-all;
 }
 
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #334155;
-}
-
-.form-group textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  resize: vertical;
-  box-sizing: border-box;
-}
-
-.form-group textarea:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
 
 .form-actions {
   display: flex;

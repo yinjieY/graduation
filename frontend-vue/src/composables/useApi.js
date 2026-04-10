@@ -2,7 +2,28 @@ import { ref } from 'vue';
 import * as api from '../api';
 
 export function useApi() {
-  return api;
+  const wrapped = {};
+  Object.keys(api).forEach((name) => {
+    const fn = api[name];
+    if (typeof fn !== 'function') {
+      wrapped[name] = fn;
+      return;
+    }
+    wrapped[name] = async (...args) => {
+      const res = await fn(...args);
+      // Unwrap common R<T> payload to simplify view-layer data handling.
+      if (res && typeof res === 'object' && Object.prototype.hasOwnProperty.call(res, 'code')) {
+        if (res.code !== 200) {
+          const error = new Error(res.msg || '请求失败');
+          error.payload = res;
+          throw error;
+        }
+        return Object.prototype.hasOwnProperty.call(res, 'data') ? res.data : res;
+      }
+      return res;
+    };
+  });
+  return wrapped;
 }
 
 // 通用错误处理
