@@ -16,7 +16,6 @@
             <h3>企业认证申请</h3>
           </div>
           <div class="form-group">
-            <input v-model="applyForm.companyId" placeholder="companyId" />
             <input v-model="applyForm.companyName" placeholder="企业名称" />
             <input v-model="applyForm.remark" placeholder="申请备注" />
           </div>
@@ -108,10 +107,19 @@ const token = ref(getToken('company'));
 const loading = ref(false);
 const notice = ref('');
 const noticeType = ref('info');
-const applyForm = reactive({ companyId: '', companyName: '', remark: '' });
+const applyForm = reactive({ companyName: '', remark: '' });
 const statusText = ref('未查询');
 const messages = ref([]);
 const feedbacks = ref([]);
+
+function getCurrentCompanyId() {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    return String(userInfo.companyId || '').trim();
+  } catch (error) {
+    return '';
+  }
+}
 
 function setNotice(message, type = 'info') {
   notice.value = message;
@@ -142,22 +150,33 @@ async function withLoading(task, successMessage = '') {
 
 async function onApply() {
   await withLoading(async () => {
-    const res = await submitCompanyApply(applyForm, token.value);
+    // 获取当前用户的 companyId
+    const companyId = getCurrentCompanyId();
+    // 构建包含 companyId 的请求体
+    const requestData = {
+      ...applyForm,
+      companyId: companyId
+    };
+    const res = await submitCompanyApply(requestData, token.value);
     if (res.code === 200 && res.data) {
       statusText.value = res.data.statusText || 'PENDING';
+    } else {
+      throw new Error(res.msg || '认证申请提交失败');
     }
   }, '认证申请已提交');
 }
 
 async function onQueryStatus() {
-  if (!applyForm.companyId) {
-    setNotice('请先填写 companyId', 'error');
-    return;
-  }
   await withLoading(async () => {
-    const res = await queryCompanyStatus(applyForm.companyId, token.value);
+    const companyId = getCurrentCompanyId();
+    if (!companyId) {
+      throw new Error('当前账号未绑定 companyId，请联系管理员');
+    }
+    const res = await queryCompanyStatus(companyId, token.value);
     if (res.code === 200 && res.data) {
-      statusText.value = `${res.data.statusText || ''} ${res.data.remark || ''}`.trim();
+      statusText.value = res.data.statusText || '';
+    } else {
+      throw new Error(res.msg || '查询认证状态失败');
     }
   });
 }
@@ -175,6 +194,13 @@ async function loadFeedbacks() {
 onMounted(async () => {
   await withLoading(async () => {
     await Promise.all([loadMessages(), loadFeedbacks()]);
+    const companyId = getCurrentCompanyId();
+    if (companyId) {
+      const res = await queryCompanyStatus(companyId, token.value);
+      if (res.code === 200 && res.data) {
+        statusText.value = res.data.statusText || '';
+      }
+    }
   });
 });
 </script>

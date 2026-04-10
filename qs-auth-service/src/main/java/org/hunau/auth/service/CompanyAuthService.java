@@ -11,6 +11,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class CompanyAuthService {
@@ -18,6 +21,7 @@ public class CompanyAuthService {
     private static final int STATUS_PENDING = 0;
     private static final int STATUS_APPROVED = 1;
     private static final int STATUS_REJECTED = 2;
+    private static final DateTimeFormatter COMPANY_ID_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final JdbcTemplate jdbcTemplate;
     private final TraceFeignClient traceFeignClient;
@@ -69,9 +73,23 @@ public class CompanyAuthService {
     public Map<String, Object> submit(String companyId, String companyName, String remark) {
         String normalizedCompanyId = normalize(companyId);
         String normalizedCompanyName = normalize(companyName);
-        if (normalizedCompanyId.isEmpty() || normalizedCompanyName.isEmpty()) {
-            throw new IllegalArgumentException("companyId 和 companyName 不能为空");
+        if (normalizedCompanyId.isEmpty()) {
+            throw new IllegalArgumentException("companyId 不能为空，请先绑定企业账号");
         }
+        if (normalizedCompanyName.isEmpty()) {
+            throw new IllegalArgumentException("companyName 不能为空");
+        }
+
+        Integer currentStatus = getReviewStatus(normalizedCompanyId);
+        if (currentStatus != null) {
+            if (currentStatus == STATUS_APPROVED) {
+                throw new IllegalArgumentException("企业已审核通过，不能重复申请");
+            }
+            if (currentStatus == STATUS_PENDING) {
+                throw new IllegalArgumentException("企业认证申请正在审核中，请勿重复提交");
+            }
+        }
+        
         String normalizedApplicant = normalize(resolveApplicant());
         if (normalizedApplicant.isEmpty()) {
             normalizedApplicant = "system";
@@ -82,7 +100,7 @@ public class CompanyAuthService {
                 VALUES (?, ?, 0, ?, NOW(), NULL, NULL, ?)
                 ON DUPLICATE KEY UPDATE
                     company_name = VALUES(company_name),
-                    review_status = VALUES(review_status),
+                    review_status = 0,
                     apply_by = VALUES(apply_by),
                     apply_time = VALUES(apply_time),
                     review_by = NULL,
@@ -193,9 +211,53 @@ public class CompanyAuthService {
         if (normalizedUsername.isEmpty()) {
             return "";
         }
-        String sql = "SELECT company_id FROM auth_user WHERE username = ? AND deleted = 0 LIMIT 1";
-        String companyId = jdbcTemplate.query(sql, rs -> rs.next() ? rs.getString(1) : null, normalizedUsername);
-        return normalize(companyId);
+        String sql = "SELECT company_id, role FROM auth_user WHERE username = ? AND deleted = 0 LIMIT 1";
+        Map<String, String> userRow = jdbcTemplate.query(sql, rs -> {
+            if (!rs.next()) {
+                return null;
+            }
+            Map<String, String> item = new HashMap<>();
+            item.put("companyId", rs.getString("company_id"));
+            item.put("role", rs.getString("role"));
+            return item;
+        }, normalizedUsername);
+        if (userRow == null) {
+            return "";
+        }
+
+        String companyId = normalize(userRow.get("companyId"));
+        if (!companyId.isEmpty()) {
+            return companyId;
+        }
+
+        String role = normalize(userRow.get("role")).toUpperCase();
+        if (!"COMPANY".equals(role)) {
+            return "";
+        }
+
+        String generatedCompanyId = generateCompanyId();
+        jdbcTemplate.update(
+                "UPDATE auth_user SET company_id = ? WHERE username = ? AND deleted = 0 AND (company_id IS NULL OR company_id = '')",
+                generatedCompanyId,
+                normalizedUsername
+        );
+        return generatedCompanyId;
+    }
+
+    private String generateCompanyId() {
+        for (int i = 0; i < 10; i++) {
+            String candidate = "C" + LocalDateTime.now().format(COMPANY_ID_FORMATTER)
+                    + ThreadLocalRandom.current().nextInt(10, 100);
+            Integer existed = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(1) FROM auth_user WHERE company_id = ?",
+                    Integer.class,
+                    candidate
+            );
+            if (existed != null && existed == 0) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("生成 companyId 失败，请重试");
     }
 
     private Integer getReviewStatus(String companyId) {

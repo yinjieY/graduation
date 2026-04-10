@@ -49,8 +49,18 @@ export function useAuth() {
       const response = await login(username, password);
       if (response.code === 200 && response.data) {
         const token = response.data;
-        setToken(role, token);
         const payload = parseJwtPayload(token);
+        
+        // 检查 token 中的角色是否与当前登录页面的角色匹配
+        const tokenRole = payload.role || '';
+        const expectedRole = role === 'admin' ? 'ADMIN' : 'COMPANY';
+        
+        if (tokenRole !== expectedRole) {
+          showError('账号角色与登录页面不匹配');
+          return false;
+        }
+        
+        setToken(role, token);
         localStorage.setItem(`${role}UserInfo`, JSON.stringify(payload));
         isAuthenticated.value = true;
         userRole.value = role;

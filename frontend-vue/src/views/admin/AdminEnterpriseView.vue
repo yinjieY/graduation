@@ -90,6 +90,7 @@ import { onMounted, ref } from 'vue';
 import { getPending, reviewCompany } from '../../api/auth';
 import { getCompanyList } from '../../api/trace';
 import { getToken } from '../../api/session';
+import { clearCache, clearCacheByUrl } from '../../api/http';
 import Layout from '../../components/Layout.vue';
 
 const loading = ref(false);
@@ -103,6 +104,8 @@ async function loadPending() {
   loading.value = true;
   error.value = '';
   try {
+    // 清除所有缓存，确保重新获取最新数据
+    clearCache();
     const res = await getPending(token.value);
     pendingList.value = res.data || [];
   } catch (err) {
@@ -117,6 +120,8 @@ async function loadAllCompanies() {
   loading.value = true;
   error.value = '';
   try {
+    // 清除所有缓存，确保重新获取最新数据
+    clearCache();
     const res = await getCompanyList(token.value);
     companies.value = (res.data || []).map((item) => ({
       ...item,
@@ -135,6 +140,8 @@ async function searchCompanies() {
   loading.value = true;
   error.value = '';
   try {
+    // 清除所有缓存，确保重新获取最新数据
+    clearCache();
     const res = await getCompanyList(token.value);
     let companyList = (res.data || []).map((item) => ({
       ...item,
@@ -163,6 +170,8 @@ async function review(companyId, approved) {
   loading.value = true;
   try {
     await reviewCompany(companyId, approved, token.value);
+    // 清除所有缓存，确保重新获取最新数据
+    clearCache();
     await loadPending();
     await loadAllCompanies();
   } catch (error) {

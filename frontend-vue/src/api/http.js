@@ -72,7 +72,7 @@ export async function apiFetch(url, options = {}) {
   // 构建缓存键
   const cacheKey = getCacheKey(fullUrl, options);
   
-  const shouldUseCache = isGetRequest(options);
+  const shouldUseCache = isGetRequest(options) && !options.noCache;
 
   // 检查是否有缓存且未过期
   if (shouldUseCache) {
@@ -105,7 +105,9 @@ export async function apiFetch(url, options = {}) {
   // 创建请求Promise
   const requestPromise = (async () => {
     try {
-      const resp = await fetchWithRetry(fullUrl, { ...options, headers });
+      const requestOptions = { ...options, headers };
+      delete requestOptions.noCache;
+      const resp = await fetchWithRetry(fullUrl, requestOptions);
       const contentType = resp.headers.get('content-type') || '';
       const data = contentType.includes('application/json') ? await resp.json() : await resp.text();
       
@@ -167,8 +169,10 @@ export function clearCache() {
 
 // 清除特定缓存
 export function clearCacheByUrl(url) {
+  // 处理相对路径，确保能匹配完整的 URL
+  const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`;
   for (const key of cache.keys()) {
-    if (key.startsWith(url)) {
+    if (key.includes(fullUrl)) {
       cache.delete(key);
     }
   }

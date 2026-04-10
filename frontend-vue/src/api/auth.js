@@ -26,7 +26,10 @@ export function registerCompany(payload) {
 }
 
 export function getPending(token) {
-  return apiFetch('/auth/company/pending', { headers: authHeaders(token) });
+  return apiFetch('/auth/company/pending', {
+    headers: authHeaders(token),
+    noCache: true
+  });
 }
 
 export function reviewCompany(companyId, approved, token) {
