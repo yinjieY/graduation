@@ -81,6 +81,38 @@
           </table>
         </div>
       </div>
+
+      <!-- 企业详情对话框 -->
+      <div v-if="showDetailDialog" class="dialog-overlay" @click="closeDetailDialog">
+        <div class="dialog-content" @click.stop>
+          <h2>企业详情</h2>
+          <div class="detail-content">
+            <div class="detail-item">
+              <label>企业ID：</label>
+              <span>{{ currentCompanyDetail?.companyId || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>企业名称：</label>
+              <span>{{ currentCompanyDetail?.name || currentCompanyDetail?.companyName || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>企业地址：</label>
+              <span>{{ currentCompanyDetail?.address || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>联系电话：</label>
+              <span>{{ currentCompanyDetail?.contactPhone || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>状态：</label>
+              <span>{{ currentCompanyDetail?.status || '-' }}</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" @click="closeDetailDialog">关闭</button>
+          </div>
+        </div>
+      </div>
     </div>
   </Layout>
 </template>
@@ -99,6 +131,8 @@ const companies = ref([]);
 const error = ref('');
 const token = ref(getToken('admin'));
 const queryForm = ref({ companyId: '', companyName: '' });
+const showDetailDialog = ref(false);
+const currentCompanyDetail = ref(null);
 
 async function loadPending() {
   loading.value = true;
@@ -184,8 +218,14 @@ async function review(companyId, approved) {
 function viewCompanyDetail(companyId) {
   const hit = companies.value.find((item) => String(item.companyId) === String(companyId));
   if (hit) {
-    error.value = `企业详情: ${hit.name || hit.companyName || '-'} | 地址: ${hit.address || '-'} | 联系电话: ${hit.contactPhone || '-'}`;
+    currentCompanyDetail.value = hit;
+    showDetailDialog.value = true;
   }
+}
+
+function closeDetailDialog() {
+  showDetailDialog.value = false;
+  currentCompanyDetail.value = null;
 }
 
 onMounted(async () => {
@@ -425,6 +465,68 @@ td {
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* 对话框样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dialog-content h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 24px 0;
+}
+
+.detail-content {
+  margin-bottom: 24px;
+}
+
+.detail-item {
+  display: flex;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+
+.detail-item label {
+  width: 100px;
+  font-weight: 600;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+.detail-item span {
+  flex: 1;
+  color: #475569;
+  word-break: break-word;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
 }
 
 @media (max-width: 768px) {

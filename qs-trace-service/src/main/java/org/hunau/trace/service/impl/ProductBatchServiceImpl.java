@@ -17,10 +17,16 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 public class ProductBatchServiceImpl implements ProductBatchService {
+
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_REJECTED = "REJECTED";
+    private static final String STATUS_DRAFT = "DRAFT";
 
     @Resource
     private ProductBatchMapper productBatchMapper;
@@ -169,5 +175,74 @@ public class ProductBatchServiceImpl implements ProductBatchService {
             throw new BusinessException("批次删除失败");
         }
         return R.ok("删除成功");
+    }
+
+    @Override
+    public R<?> applyForReview(String batchId) {
+        AssertUtil.notEmpty(batchId, "batchId不能为空");
+        ProductBatch exist = productBatchMapper.selectById(batchId.trim());
+        if (exist == null) {
+            throw new BusinessException("批次不存在");
+        }
+
+        String effectiveCompanyId = resolveTargetCompanyId(exist.getCompanyId(), "申请审核");
+        if (!effectiveCompanyId.equals(exist.getCompanyId())) {
+            throw new BusinessException("无权限申请该批次审核");
+        }
+
+        if (STATUS_APPROVED.equals(exist.getReviewStatus())) {
+            throw new BusinessException("该批次已通过审核，无需重复申请");
+        }
+
+        LambdaUpdateWrapper<ProductBatch> updateWrapper = new LambdaUpdateWrapper<ProductBatch>()
+                .eq(ProductBatch::getBatchId, batchId.trim())
+                .set(ProductBatch::getReviewStatus, STATUS_PENDING)
+                .set(ProductBatch::getUpdatedAt, LocalDateTime.now());
+
+        int affected = productBatchMapper.update(null, updateWrapper);
+        if (affected <= 0) {
+            throw new BusinessException("申请审核失败");
+        }
+        return R.ok("申请审核成功，请等待管理员审核");
+    }
+
+    @Override
+    public R<?> reviewBatch(String batchId, String status, String comment) {
+        AssertUtil.notEmpty(batchId, "batchId不能为空");
+        AssertUtil.notEmpty(status, "审核状态不能为空");
+        if (!STATUS_APPROVED.equals(status) && !STATUS_REJECTED.equals(status)) {
+            throw new BusinessException("无效的审核状态");
+        }
+
+        ProductBatch exist = productBatchMapper.selectById(batchId.trim());
+        if (exist == null) {
+            throw new BusinessException("批次不存在");
+        }
+
+        if (!STATUS_PENDING.equals(exist.getReviewStatus())) {
+            throw new BusinessException("该批次当前状态不允许审核");
+        }
+
+        LambdaUpdateWrapper<ProductBatch> updateWrapper = new LambdaUpdateWrapper<ProductBatch>()
+                .eq(ProductBatch::getBatchId, batchId.trim())
+                .set(ProductBatch::getReviewStatus, status)
+                .set(ProductBatch::getReviewComment, comment)
+                .set(ProductBatch::getReviewTime, LocalDateTime.now())
+                .set(ProductBatch::getUpdatedAt, LocalDateTime.now());
+
+        int affected = productBatchMapper.update(null, updateWrapper);
+        if (affected <= 0) {
+            throw new BusinessException("审核操作失败");
+        }
+        return R.ok("审核成功");
+    }
+
+    @Override
+    public R<?> listPendingBatches() {
+        LambdaQueryWrapper<ProductBatch> wrapper = new LambdaQueryWrapper<ProductBatch>()
+                .eq(ProductBatch::getReviewStatus, STATUS_PENDING)
+                .orderByDesc(ProductBatch::getCreatedAt);
+        List<ProductBatch> batches = productBatchMapper.selectList(wrapper);
+        return R.ok(batches);
     }
 }

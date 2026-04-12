@@ -18,6 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @Service
 public class CompanyAuthService {
 
+    private static final int STATUS_NOT_APPLIED = -1;
     private static final int STATUS_PENDING = 0;
     private static final int STATUS_APPROVED = 1;
     private static final int STATUS_REJECTED = 2;
@@ -80,12 +81,28 @@ public class CompanyAuthService {
             throw new IllegalArgumentException("companyName 不能为空");
         }
 
-        Integer currentStatus = getReviewStatus(normalizedCompanyId);
-        if (currentStatus != null) {
+        // 检查是否已经存在审核记录
+        String sql = "SELECT review_status, remark FROM company_auth WHERE company_id = ? LIMIT 1";
+        Map<String, Object> existingRecord = jdbcTemplate.query(sql, rs -> {
+            if (!rs.next()) {
+                return null;
+            }
+            Map<String, Object> record = new HashMap<>();
+            record.put("reviewStatus", rs.getInt("review_status"));
+            record.put("remark", rs.getString("remark"));
+            return record;
+        }, normalizedCompanyId);
+
+        if (existingRecord != null) {
+            int currentStatus = (Integer) existingRecord.get("reviewStatus");
+            String existingRemark = (String) existingRecord.get("remark");
+            
             if (currentStatus == STATUS_APPROVED) {
                 throw new IllegalArgumentException("企业已审核通过，不能重复申请");
             }
-            if (currentStatus == STATUS_PENDING) {
+            
+            // 只有当状态为 PENDING 且不是注册自动创建的记录时，才阻止重复提交
+            if (currentStatus == STATUS_PENDING && !"register auto created".equals(existingRemark)) {
                 throw new IllegalArgumentException("企业认证申请正在审核中，请勿重复提交");
             }
         }
@@ -95,7 +112,7 @@ public class CompanyAuthService {
             normalizedApplicant = "system";
         }
 
-        String sql = """
+        String insertSql = """
                 INSERT INTO company_auth(company_id, company_name, review_status, apply_by, apply_time, review_by, review_time, remark)
                 VALUES (?, ?, 0, ?, NOW(), NULL, NULL, ?)
                 ON DUPLICATE KEY UPDATE
@@ -107,7 +124,7 @@ public class CompanyAuthService {
                     review_time = NULL,
                     remark = VALUES(remark)
                 """;
-        jdbcTemplate.update(sql, normalizedCompanyId, normalizedCompanyName, normalizedApplicant, normalize(remark));
+        jdbcTemplate.update(insertSql, normalizedCompanyId, normalizedCompanyName, normalizedApplicant, normalize(remark));
         return queryStatus(normalizedCompanyId);
     }
 

@@ -1,5 +1,6 @@
 package org.hunau.auth.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.hunau.auth.model.RegisterRequest;
 import org.hunau.auth.service.RegisterService;
 import org.hunau.common.R;
@@ -22,19 +23,21 @@ public class RegisterController {
     }
 
     @PostMapping("/user")
-    public R<Map<String, Object>> register(@RequestBody RegisterRequest request) {
+    public R<Map<String, Object>> register(@RequestBody RegisterRequest request, HttpServletResponse response) {
         try {
             return R.ok(registerService.register(request));
         } catch (IllegalArgumentException ex) {
+            response.setStatus(ResultCode.PARAM_ERROR);
             return R.fail(ResultCode.PARAM_ERROR, ex.getMessage());
         }
     }
 
     @PostMapping("/admin")
-    public R<Map<String, Object>> registerAdmin(@RequestBody RegisterRequest request) {
+    public R<Map<String, Object>> registerAdmin(@RequestBody RegisterRequest request, HttpServletResponse response) {
         try {
             return R.ok(registerService.registerAdmin(request));
         } catch (IllegalArgumentException ex) {
+            response.setStatus(ResultCode.PARAM_ERROR);
             return R.fail(ResultCode.PARAM_ERROR, ex.getMessage());
         }
     }

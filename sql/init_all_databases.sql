@@ -44,6 +44,9 @@ CREATE TABLE `product_batch` (
                                  `ingredients` VARCHAR(200) NOT NULL COMMENT '产品配料明细',
                                  `production_standard` VARCHAR(100) NOT NULL COMMENT '产品执行标准号',
                                  `total_quantity` INT NOT NULL COMMENT '批次生产总数量',
+                                 `review_status` VARCHAR(20) DEFAULT 'DRAFT' COMMENT '审核状态：DRAFT(草稿)/PENDING(待审核)/APPROVED(已通过)/REJECTED(已拒绝)',
+                                 `review_comment` VARCHAR(255) DEFAULT NULL COMMENT '审核评论（拒绝原因）',
+                                 `review_time` DATETIME DEFAULT NULL COMMENT '审核时间',
                                  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
                                  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
                                  CONSTRAINT `fk_batch_company` FOREIGN KEY (`company_id`) REFERENCES `company` (`company_id`)

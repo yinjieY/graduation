@@ -43,7 +43,12 @@ const routes = [
   { 
     path: '/admin/message', 
     component: () => import('../views/admin/AdminMessageView.vue'), 
-    meta: { authRole: 'admin', title: '消息管理' }
+    meta: { authRole: 'admin', title: '消息管理' } 
+  },
+  { 
+    path: '/admin/batch-review', 
+    component: () => import('../views/admin/AdminBatchReviewView.vue'), 
+    meta: { authRole: 'admin', title: '批次审核' } 
   },
   
   // Company routes

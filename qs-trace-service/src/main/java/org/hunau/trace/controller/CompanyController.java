@@ -73,4 +73,13 @@ public class CompanyController {
     public R<?> updateCompanyInfo(@RequestBody Company company) {
         return companyService.updateCompanyInfo(company);
     }
+    
+    /**
+     * 根据企业ID获取企业信息
+     */
+    @GetMapping("/{companyId}")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<?> getCompanyById(@PathVariable String companyId) {
+        return companyService.getCompanyById(companyId);
+    }
 }

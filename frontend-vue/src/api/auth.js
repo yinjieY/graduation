@@ -54,9 +54,14 @@ export function submitCompanyApply(payload, token) {
   });
 }
 
-export function queryCompanyStatus(companyId, token) {
+export function queryCompanyStatus(companyId, token, options = {}) {
   return apiFetch(`/auth/company/status/${encodeURIComponent(companyId)}`, {
-    headers: authHeaders(token)
+    headers: authHeaders(token),
+    noCache: Boolean(options.noCache)
   });
+}
+
+export function getCompanyToken() {
+  return localStorage.getItem('company_token') || '';
 }
 

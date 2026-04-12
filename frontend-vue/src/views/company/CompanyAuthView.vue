@@ -97,12 +97,10 @@
 <script setup>
 import { reactive, ref, onMounted, computed } from 'vue';
 import { queryCompanyStatus, submitCompanyApply } from '../../api/auth';
-import { getToken } from '../../api/session';
 import Layout from '../../components/Layout.vue';
 
 const loading = ref(false);
-const authStatus = ref('NOT_APPLIED'); // NOT_APPLIED, PENDING, APPROVED, REJECTED
-const statusText = ref('未申请');
+const authStatus = ref('NOT_APPLIED');
 const statusRemark = ref('');
 const companyId = ref('');
 const companyName = ref('');
@@ -117,18 +115,27 @@ const applyForm = reactive({
   remark: ''
 });
 
-const token = ref(getToken('company'));
+function getCompanyToken() {
+  return localStorage.getItem('company_token') || '';
+}
 
 function getCurrentCompanyId() {
   try {
-    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
-    return String(userInfo.companyId || '').trim();
+    const userInfoStr = localStorage.getItem('companyUserInfo');
+    if (!userInfoStr) {
+      console.log('companyUserInfo is null or empty');
+      return '';
+    }
+    const userInfo = JSON.parse(userInfoStr);
+    const companyId = String(userInfo.companyId || '').trim();
+    console.log('companyId from userInfo:', companyId);
+    return companyId;
   } catch (error) {
+    console.error('解析 companyUserInfo 失败:', error);
     return '';
   }
 }
 
-// 计算状态相关的属性
 const statusTitle = computed(() => {
   switch (authStatus.value) {
     case 'NOT_APPLIED':
@@ -208,39 +215,59 @@ const showApplyForm = computed(() => {
   return authStatus.value === 'NOT_APPLIED' || authStatus.value === 'REJECTED';
 });
 
-// 加载认证状态
 async function loadAuthStatus() {
+  console.log('loadAuthStatus called');
   loading.value = true;
   try {
     const currentCompanyId = getCurrentCompanyId();
+    console.log('currentCompanyId:', currentCompanyId);
+    
     if (!currentCompanyId) {
       authStatus.value = 'NOT_APPLIED';
       statusRemark.value = '当前账号未绑定 companyId，请联系管理员处理';
+      loading.value = false;
       return;
     }
 
-    const res = await queryCompanyStatus(currentCompanyId, token.value);
-    if (res.code === 200 && res.data) {
-      authStatus.value = res.data.statusText || 'NOT_APPLIED';
-      statusRemark.value = res.data.remark || '';
+    const token = getCompanyToken();
+    console.log('token:', token);
+    
+    if (!token) {
+      authStatus.value = 'NOT_APPLIED';
+      statusRemark.value = '未检测到登录状态，请重新登录';
+      loading.value = false;
+      return;
+    }
+
+    console.log('准备发送请求到 /auth/company/status/' + currentCompanyId);
+    const res = await queryCompanyStatus(currentCompanyId, token, { noCache: true });
+    console.log('响应:', res);
+    
+    if (res && res.code === 200 && res.data) {
+      if (res.data.remark === 'register auto created') {
+        authStatus.value = 'NOT_APPLIED';
+        statusRemark.value = '请提交企业认证申请';
+      } else {
+        authStatus.value = res.data.statusText || 'NOT_APPLIED';
+        statusRemark.value = res.data.remark || '';
+      }
       companyId.value = res.data.companyId || '';
       companyName.value = res.data.companyName || '';
       authTime.value = res.data.reviewTime || '';
       rejectReason.value = res.data.remark || '';
     } else {
       authStatus.value = 'NOT_APPLIED';
-      statusRemark.value = res.msg || '企业认证记录不存在';
+      statusRemark.value = res?.msg || '企业认证记录不存在';
     }
   } catch (error) {
     console.error('查询认证状态失败:', error);
-    // 如果查询失败，默认为未申请状态
     authStatus.value = 'NOT_APPLIED';
+    statusRemark.value = '查询认证状态失败，请稍后重试';
   } finally {
     loading.value = false;
   }
 }
 
-// 提交认证申请
 async function onApply() {
   if (!applyForm.companyName) {
     alert('请填写企业名称');
@@ -253,15 +280,17 @@ async function onApply() {
       companyName: applyForm.companyName,
       remark: applyForm.remark
     };
-    const res = await submitCompanyApply(formData, token.value);
-    if (res.code === 200 && res.data) {
+    const token = getCompanyToken();
+    const res = await submitCompanyApply(formData, token);
+    
+    if (res && res.code === 200 && res.data) {
       authStatus.value = res.data.statusText || 'PENDING';
       statusRemark.value = res.data.remark || '';
       companyId.value = res.data.companyId || '';
       companyName.value = res.data.companyName || applyForm.companyName;
       alert('认证申请提交成功，正在审核中');
     } else {
-      alert(res.msg || '认证申请提交失败');
+      alert(res?.msg || '认证申请提交失败');
     }
   } catch (error) {
     console.error('提交认证申请失败:', error);
@@ -271,7 +300,6 @@ async function onApply() {
   }
 }
 
-// 重置表单
 function resetForm() {
   Object.keys(applyForm).forEach(key => {
     applyForm[key] = '';
@@ -279,7 +307,6 @@ function resetForm() {
   authStatus.value = 'NOT_APPLIED';
 }
 
-// 页面加载时自动查询认证状态
 onMounted(() => {
   loadAuthStatus();
 });
@@ -310,7 +337,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* 状态卡片样式 */
 .status-card {
   background: white;
   border-radius: 12px;
@@ -439,7 +465,6 @@ onMounted(() => {
   font-style: italic;
 }
 
-/* 卡片样式 */
 .card {
   background: white;
   border-radius: 12px;
@@ -458,7 +483,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* 表单样式 */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -525,7 +549,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* 认证信息样式 */
 .auth-info {
   display: flex;
   flex-direction: column;
@@ -551,7 +574,6 @@ button:disabled {
   flex: 1;
 }
 
-/* 认证失败信息样式 */
 .reject-info {
   display: flex;
   flex-direction: column;

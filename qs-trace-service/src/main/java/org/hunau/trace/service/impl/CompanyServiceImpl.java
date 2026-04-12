@@ -229,6 +229,16 @@ public class CompanyServiceImpl implements CompanyService {
         return R.ok(company);
     }
 
+    @Override
+    public R<?> getCompanyById(String companyId) {
+        AssertUtil.notEmpty(companyId, "企业ID不能为空");
+        Company company = companyMapper.selectById(companyId);
+        if (company == null) {
+            throw new BusinessException("企业不存在");
+        }
+        return R.ok(company);
+    }
+
     private boolean isCurrentUserAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {

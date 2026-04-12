@@ -29,6 +29,15 @@ public class ProductBatch {
     @TableField("total_quantity")
     private Integer totalQuantity;
 
+    @TableField("review_status")
+    private String reviewStatus;
+
+    @TableField("review_comment")
+    private String reviewComment;
+
+    @TableField("review_time")
+    private LocalDateTime reviewTime;
+
     @TableField("created_at")
     private LocalDateTime createdAt;
 

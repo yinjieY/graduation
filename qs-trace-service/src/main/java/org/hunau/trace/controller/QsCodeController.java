@@ -51,7 +51,7 @@ public class QsCodeController {
 
     // 二维码生命周期管理（active/invalid/frozen/cancelled）
     @PutMapping("/{qsId}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
     public R<?> changeStatus(@PathVariable String qsId, @RequestBody ChangeQsStatusRequest request) {
         return qsCodeService.changeStatus(qsId, request.getStatus());
     }

@@ -172,7 +172,7 @@ async function onQueryStatus() {
     if (!companyId) {
       throw new Error('当前账号未绑定 companyId，请联系管理员');
     }
-    const res = await queryCompanyStatus(companyId, token.value);
+    const res = await queryCompanyStatus(companyId, token.value, { noCache: true });
     if (res.code === 200 && res.data) {
       statusText.value = res.data.statusText || '';
     } else {

@@ -58,6 +58,11 @@ const clearAllTokens = () => {
 // 跳转到登录页
 const redirectToLogin = () => {
   const current = `${window.location.pathname}${window.location.hash}`;
+  // 只有在未登录状态下才跳转到登录页面
+  // 注册页面不应该被重定向
+  if (current.includes('/company/register') || current.includes('/admin/register')) {
+    return;
+  }
   if (current.includes('/company/')) {
     window.location.hash = '#/company/login';
     return;

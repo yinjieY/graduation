@@ -77,16 +77,60 @@ export function deleteProductBatch(batchId, token) {
   });
 }
 
+export function applyForReview(batchId, token) {
+  return apiFetch(`/trace/batch/${encodeURIComponent(batchId)}/apply-review`, {
+    method: 'POST',
+    headers: authHeaders(token)
+  });
+}
+
+export function getPendingBatches(token) {
+  return apiFetch('/trace/batch/pending', {
+    headers: authHeaders(token)
+  }).then(response => {
+    // 确保返回的数据格式正确
+    if (response && response.data) {
+      return response;
+    }
+    return { data: [] };
+  });
+}
+
+export function reviewBatch(batchId, status, comment, token) {
+  return apiFetch(`/trace/batch/${encodeURIComponent(batchId)}/review?status=${encodeURIComponent(status)}&comment=${encodeURIComponent(comment || '')}`, {
+    method: 'PUT',
+    headers: authHeaders(token)
+  });
+}
+
 // 溯源码管理
 export function generateQrCodes(batchId, count, token) {
-  return apiFetch('/trace/qs/generate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(token)
-    },
-    body: JSON.stringify({ batchId, maxAllowedScans: count })
-  });
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    const payload = { batchId, maxAllowedScans: count };
+    if (companyId) {
+      payload.companyId = companyId;
+    }
+    return apiFetch('/trace/qs/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(token)
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+    return apiFetch('/trace/qs/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(token)
+      },
+      body: JSON.stringify({ batchId, maxAllowedScans: count })
+    });
+  }
 }
 
 export function getQrCodeList(token) {
@@ -131,6 +175,10 @@ export function updateCompanyInfo(payload, token) {
     },
     body: JSON.stringify(payload)
   });
+}
+
+export function getCompanyById(companyId, token) {
+  return apiFetch(`/trace/company/${encodeURIComponent(companyId)}`, { headers: authHeaders(token) });
 }
 
 // 企业管理

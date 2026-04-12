@@ -30,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +72,9 @@ public class QsCodeServiceImpl implements QsCodeService {
         }
         if (!qsCode.getCompanyId().equals(batch.getCompanyId())) {
             throw new BusinessException("批次与企业不匹配");
+        }
+        if (!"APPROVED".equals(batch.getReviewStatus())) {
+            throw new BusinessException("批次未通过审核，无法生成二维码");
         }
 
         Company company = companyMapper.selectById(qsCode.getCompanyId());
@@ -211,7 +216,33 @@ public class QsCodeServiceImpl implements QsCodeService {
             wrapper.eq(QsCode::getCompanyId, companyId);
         }
         List<QsCode> qsCodes = qsCodeMapper.selectList(wrapper);
-        return R.ok(qsCodes);
+        
+        // 查询所有涉及的企业信息
+        Map<String, String> companyNameMap = new HashMap<>();
+        for (QsCode qsCode : qsCodes) {
+            if (qsCode.getCompanyId() != null && !qsCode.getCompanyId().isEmpty() && !companyNameMap.containsKey(qsCode.getCompanyId())) {
+                Company company = companyMapper.selectById(qsCode.getCompanyId());
+                if (company != null) {
+                    companyNameMap.put(qsCode.getCompanyId(), company.getName());
+                }
+            }
+        }
+        
+        // 构建返回结果，包含企业名称
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (QsCode qsCode : qsCodes) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("qsId", qsCode.getQsId());
+            item.put("batchId", qsCode.getBatchId());
+            item.put("companyId", qsCode.getCompanyId());
+            item.put("companyName", companyNameMap.getOrDefault(qsCode.getCompanyId(), "-"));
+            item.put("status", qsCode.getStatus());
+            item.put("createdAt", qsCode.getCreatedAt());
+            item.put("updatedAt", qsCode.getUpdatedAt());
+            result.add(item);
+        }
+        
+        return R.ok(result);
     }
 
     @Override
@@ -225,6 +256,42 @@ public class QsCodeServiceImpl implements QsCodeService {
         QsCode qsCode = qsCodeMapper.selectById(qsId);
         if (qsCode == null) {
             throw new BusinessException("二维码不存在");
+        }
+
+        // 检查权限
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new BusinessException("未登录或登录状态已失效");
+        }
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+
+        if (!isAdmin) {
+            // 企业用户检查
+            Object principalObj = authentication.getPrincipal();
+            if (!(principalObj instanceof AuthPrincipal principal)) {
+                throw new BusinessException("用户身份上下文异常，请重新登录");
+            }
+
+            if (!"COMPANY".equalsIgnoreCase(principal.getRole())) {
+                throw new BusinessException("仅管理员或企业账号可修改二维码状态");
+            }
+
+            // 检查是否为本企业的二维码
+            if (!qsCode.getCompanyId().equals(principal.getCompanyId())) {
+                throw new BusinessException("企业账号只能修改本企业的二维码");
+            }
+
+            // 检查当前状态是否为冻结状态（冻结状态只能由管理员解冻）
+            if ("frozen".equals(qsCode.getStatus())) {
+                throw new BusinessException("冻结状态的二维码只能由管理员修改");
+            }
+
+            // 检查目标状态（企业用户只能在active和invalid之间切换）
+            if (!"active".equals(status) && !"invalid".equals(status)) {
+                throw new BusinessException("企业用户只能设置活跃或停用状态");
+            }
         }
 
         LambdaUpdateWrapper<QsCode> updateWrapper = new LambdaUpdateWrapper<QsCode>()

@@ -21,4 +21,6 @@ public interface CompanyService {
     R<?> getCompanyInfo();
     
     R<?> updateCompanyInfo(Company company);
+    
+    R<?> getCompanyById(String companyId);
 }

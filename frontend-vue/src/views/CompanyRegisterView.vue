@@ -182,6 +182,7 @@ async function onRegister() {
     setNotice('注册成功，请登录', 'success');
     setTimeout(() => router.push('/company/login'), 1000);
   } catch (error) {
+    console.error('注册错误:', error);
     setNotice(error?.message || '注册失败，请稍后重试', 'error');
   } finally {
     loading.value = false;

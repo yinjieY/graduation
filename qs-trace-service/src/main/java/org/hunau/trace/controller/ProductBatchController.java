@@ -36,4 +36,22 @@ public class ProductBatchController {
     public R<?> delete(@PathVariable String batchId, @RequestParam(required = false) String companyId) {
         return productBatchService.deleteBatch(batchId);
     }
+
+    @PostMapping("/{batchId}/apply-review")
+    @PreAuthorize("hasAnyRole('ADMIN','COMPANY')")
+    public R<?> applyReview(@PathVariable String batchId) {
+        return productBatchService.applyForReview(batchId);
+    }
+
+    @PutMapping("/{batchId}/review")
+    @PreAuthorize("hasRole('ADMIN')")
+    public R<?> review(@PathVariable String batchId, @RequestParam String status, @RequestParam(required = false) String comment) {
+        return productBatchService.reviewBatch(batchId, status, comment);
+    }
+
+    @GetMapping("/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public R<?> listPending() {
+        return productBatchService.listPendingBatches();
+    }
 }

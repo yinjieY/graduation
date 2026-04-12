@@ -31,6 +31,50 @@
         </div>
       </div>
 
+      
+      <!-- 所有二维码列表 -->
+      <div class="card">
+        <div class="card-header">
+          <h3>所有二维码列表</h3>
+          <button class="btn-refresh" :disabled="loading" @click="loadAllQrcodes">
+            <span v-if="loading" class="loading-spinner"></span>
+            刷新二维码列表
+          </button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>二维码ID</th><th>批次ID</th><th>批次名称</th><th>企业ID</th><th>企业名</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+            <tbody>
+            <tr v-if="qrcodes.length === 0"><td colspan="8" class="empty-state">暂无二维码数据</td></tr>
+            <tr v-for="item in qrcodes" :key="item.qrcodeId">
+              <td>{{ item.qrcodeId }}</td>
+              <td>{{ item.batchId }}</td>
+              <td>{{ item.batchName || '-' }}</td>
+              <td>{{ item.companyId }}</td>
+              <td class="company-name">{{ item.companyName }}</td>
+              <td>
+                <span :class="{
+                  'status-pending': item.status === 'PENDING',
+                  'status-approved': item.status === 'APPROVED',
+                  'status-rejected': item.status === 'REJECTED',
+                  'status-active': item.status === 'ACTIVE',
+                  'status-frozen': item.status === 'FROZEN'
+                }">
+                  {{ item.status }}
+                </span>
+              </td>
+              <td>{{ item.createTime }}</td>
+              <td class="actions">
+                <button class="btn-primary" :disabled="loading || item.status === 'FROZEN'" @click="freezeQrcode(item.qrcodeId, true)">冻结</button>
+                <button class="btn-secondary" :disabled="loading || item.status !== 'FROZEN'" @click="freezeQrcode(item.qrcodeId, false)">解冻</button>
+                <button class="btn-secondary" :disabled="loading" @click="viewQrcodeDetail(item.qrcodeId)">查看详情</button>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
       <!-- 待审二维码列表 -->
       <div class="card">
         <div class="card-header">
@@ -60,44 +104,36 @@
         </div>
       </div>
 
-      <!-- 所有二维码列表 -->
-      <div class="card">
-        <div class="card-header">
-          <h3>所有二维码列表</h3>
-          <button class="btn-refresh" :disabled="loading" @click="loadAllQrcodes">
-            <span v-if="loading" class="loading-spinner"></span>
-            刷新二维码列表
-          </button>
-        </div>
-        <div class="table-wrapper">
-          <table>
-            <thead><tr><th>二维码ID</th><th>企业ID</th><th>企业名</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
-            <tbody>
-            <tr v-if="qrcodes.length === 0"><td colspan="6" class="empty-state">暂无二维码数据</td></tr>
-            <tr v-for="item in qrcodes" :key="item.qrcodeId">
-              <td>{{ item.qrcodeId }}</td>
-              <td>{{ item.companyId }}</td>
-              <td class="company-name">{{ item.companyName }}</td>
-              <td>
-                <span :class="{
-                  'status-pending': item.status === 'PENDING',
-                  'status-approved': item.status === 'APPROVED',
-                  'status-rejected': item.status === 'REJECTED',
-                  'status-active': item.status === 'ACTIVE',
-                  'status-frozen': item.status === 'FROZEN'
-                }">
-                  {{ item.status }}
-                </span>
-              </td>
-              <td>{{ item.createTime }}</td>
-              <td class="actions">
-                <button class="btn-primary" :disabled="loading || item.status === 'FROZEN'" @click="freezeQrcode(item.qrcodeId, true)">冻结</button>
-                <button class="btn-secondary" :disabled="loading || item.status !== 'FROZEN'" @click="freezeQrcode(item.qrcodeId, false)">解冻</button>
-                <button class="btn-secondary" :disabled="loading" @click="viewQrcodeDetail(item.qrcodeId)">查看详情</button>
-              </td>
-            </tr>
-            </tbody>
-          </table>
+
+      <!-- 二维码详情对话框 -->
+      <div v-if="showDetailDialog" class="dialog-overlay" @click="closeDetailDialog">
+        <div class="dialog-content" @click.stop>
+          <h2>二维码详情</h2>
+          <div class="detail-content">
+            <div class="detail-item">
+              <label>二维码ID：</label>
+              <span>{{ currentQrcodeDetail?.qrcodeId || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>企业ID：</label>
+              <span>{{ currentQrcodeDetail?.companyId || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>企业名称：</label>
+              <span>{{ currentQrcodeDetail?.companyName || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>状态：</label>
+              <span>{{ currentQrcodeDetail?.status || '-' }}</span>
+            </div>
+            <div class="detail-item">
+              <label>创建时间：</label>
+              <span>{{ currentQrcodeDetail?.createTime || '-' }}</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" @click="closeDetailDialog">关闭</button>
+          </div>
         </div>
       </div>
     </div>
@@ -121,6 +157,8 @@ const queryForm = ref({
   companyName: '',
   status: ''
 });
+const showDetailDialog = ref(false);
+const currentQrcodeDetail = ref(null);
 
 function normalizeStatus(status) {
   return String(status || '').toUpperCase();
@@ -129,6 +167,8 @@ function normalizeStatus(status) {
 function toViewModel(item) {
   return {
     qrcodeId: item.qsId || item.qrcodeId || '-',
+    batchId: item.batchId || '-',
+    batchName: item.batchName || '-',
     companyId: item.companyId || '-',
     companyName: item.companyName || '-',
     status: normalizeStatus(item.status),
@@ -223,8 +263,14 @@ async function freezeQrcode(qrcodeId, frozen) {
 function viewQrcodeDetail(qrcodeId) {
   const hit = qrcodes.value.find((item) => String(item.qrcodeId) === String(qrcodeId));
   if (hit) {
-    error.value = `二维码详情: ${hit.qrcodeId} | 企业: ${hit.companyId} | 状态: ${hit.status} | 创建时间: ${hit.createTime}`;
+    currentQrcodeDetail.value = hit;
+    showDetailDialog.value = true;
   }
+}
+
+function closeDetailDialog() {
+  showDetailDialog.value = false;
+  currentQrcodeDetail.value = null;
 }
 
 onMounted(async () => {
@@ -476,6 +522,68 @@ td {
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* 对话框样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dialog-content h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 24px 0;
+}
+
+.detail-content {
+  margin-bottom: 24px;
+}
+
+.detail-item {
+  display: flex;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+
+.detail-item label {
+  width: 100px;
+  font-weight: 600;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+.detail-item span {
+  flex: 1;
+  color: #475569;
+  word-break: break-word;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
 }
 
 @media (max-width: 768px) {
