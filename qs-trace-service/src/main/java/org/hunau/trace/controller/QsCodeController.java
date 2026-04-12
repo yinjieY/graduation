@@ -56,10 +56,16 @@ public class QsCodeController {
         return qsCodeService.changeStatus(qsId, request.getStatus());
     }
 
-    // 系统自动处置（例如预警服务触发冻结）
+    // 系统自动处置（例如预警服务触发冻结）- 仅管理员可访问
     @PutMapping("/{qsId}/status/internal")
-    @PreAuthorize("hasAnyRole('ADMIN','SERVICE')")
+    @PreAuthorize("hasRole('ADMIN')")
     public R<?> changeStatusInternal(@PathVariable String qsId, @RequestBody ChangeQsStatusRequest request) {
         return qsCodeService.changeStatus(qsId, request.getStatus());
+    }
+
+    // 系统自动处置（无需认证）- 用于预警服务等内部系统调用
+    @PutMapping("/{qsId}/status/system")
+    public R<?> changeStatusBySystem(@PathVariable String qsId, @RequestBody ChangeQsStatusRequest request) {
+        return qsCodeService.changeStatusBySystem(qsId, request.getStatus());
     }
 }

@@ -195,7 +195,22 @@ import { onMounted, reactive, ref, computed } from 'vue';
 import { queryFeedbackStatus, submitFeedback } from '../api/feedback';
 import { queryTrace, reportScan } from '../api/scan';
 
-const params = new URLSearchParams(window.location.search);
+function getUrlParams() {
+  const search = window.location.search;
+  if (search) {
+    return new URLSearchParams(search);
+  }
+  
+  const hash = window.location.hash;
+  const hashIndex = hash.indexOf('?');
+  if (hashIndex !== -1) {
+    return new URLSearchParams(hash.substring(hashIndex));
+  }
+  
+  return new URLSearchParams();
+}
+
+const params = getUrlParams();
 
 const fpKey = 'trace_device_fp';
 let fp = localStorage.getItem(fpKey);
@@ -385,6 +400,8 @@ async function autoLocateAndReport() {
     return;
   }
 
+  locationStatus.value = '正在定位...';
+  
   await new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -392,12 +409,15 @@ async function autoLocateAndReport() {
           await doReport();
           resolve();
         },
-        async () => {
-          updateGeo(null, null, '定位失败，已按无GPS上报');
+        async (error) => {
+          const errorMsg = error.code === error.TIMEOUT ? '定位超时，已按无GPS上报' : 
+                         error.code === error.PERMISSION_DENIED ? '用户拒绝定位权限，已按无GPS上报' : 
+                         '定位失败，已按无GPS上报';
+          updateGeo(null, null, errorMsg);
           await doReport();
           resolve();
         },
-        { enableHighAccuracy: false, timeout: 2200, maximumAge: 120000 }
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 120000 }
     );
   });
 }

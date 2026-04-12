@@ -62,37 +62,37 @@ public class FeedbackService {
     @PostConstruct
     public void ensureFeedbackSchema() {
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS feedback_record ("
-                + "id BIGINT AUTO_INCREMENT PRIMARY KEY,"
-                + "feedback_id VARCHAR(40) NOT NULL,"
-                + "qs_id VARCHAR(32) NOT NULL,"
-                + "batch_id VARCHAR(32) NULL,"
-                + "company_id VARCHAR(32) NULL,"
-                + "device_fingerprint VARCHAR(64) NOT NULL,"
-                + "submitter_ip VARCHAR(64) NULL,"
-                + "feedback_type VARCHAR(20) NOT NULL,"
-                + "description VARCHAR(200) NULL,"
-                + "region VARCHAR(100) NOT NULL,"
-                + "lat DOUBLE NULL,"
-                + "lng DOUBLE NULL,"
-                + "image_file VARCHAR(128) NOT NULL,"
-                + "qr_status VARCHAR(20) NULL,"
-                + "complaint_rate DECIMAL(8,4) NOT NULL DEFAULT 0,"
-                + "risk_level VARCHAR(16) NOT NULL DEFAULT 'NONE',"
-                + "status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED',"
-                + "handle_user VARCHAR(64) NULL,"
-                + "handle_note VARCHAR(255) NULL,"
-                + "handle_time DATETIME NULL,"
-                + "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                + "id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '反馈记录自增ID',"
+                + "feedback_id VARCHAR(40) NOT NULL COMMENT '反馈唯一编号',"
+                + "qs_id VARCHAR(32) NOT NULL COMMENT '二维码ID',"
+                + "batch_id VARCHAR(32) NULL COMMENT '批次ID',"
+                + "company_id VARCHAR(32) NULL COMMENT '企业ID',"
+                + "device_fingerprint VARCHAR(64) NOT NULL COMMENT '设备指纹',"
+                + "submitter_ip VARCHAR(64) NULL COMMENT '提交者IP地址',"
+                + "feedback_type VARCHAR(20) NOT NULL COMMENT '反馈类型(CROSS_REGION跨区销售/COUNTERFEIT假冒伪劣/OTHER其他)',"
+                + "description VARCHAR(200) NULL COMMENT '反馈详细描述',"
+                + "region VARCHAR(100) NOT NULL COMMENT '反馈地区',"
+                + "lat DOUBLE NULL COMMENT '纬度坐标',"
+                + "lng DOUBLE NULL COMMENT '经度坐标',"
+                + "image_file VARCHAR(128) NOT NULL COMMENT '水印后图片文件名',"
+                + "qr_status VARCHAR(20) NULL COMMENT '提交时二维码状态',"
+                + "complaint_rate DECIMAL(8,4) NOT NULL DEFAULT 0 COMMENT '投诉率(反馈数/扫码数)',"
+                + "risk_level VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT '风险等级(NONE/LOW/MEDIUM/HIGH)',"
+                + "status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED' COMMENT '处理状态(SUBMITTED已提交/ACCEPTED已受理/REJECTED已驳回/CLOSED已结案)',"
+                + "handle_user VARCHAR(64) NULL COMMENT '处理人',"
+                + "handle_note VARCHAR(255) NULL COMMENT '处理备注',"
+                + "handle_time DATETIME NULL COMMENT '处理时间',"
+                + "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',"
                 + "UNIQUE KEY uk_feedback_id (feedback_id),"
                 + "UNIQUE KEY uk_qs_device_feedback (qs_id, device_fingerprint),"
                 + "KEY idx_feedback_qs_time (qs_id, created_at),"
                 + "KEY idx_feedback_company (company_id)"
-                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消费者质量反馈记录表'");
 
-        addColumnIfMissing("submitter_ip", "ALTER TABLE feedback_record ADD COLUMN submitter_ip VARCHAR(64) NULL AFTER device_fingerprint");
-        addColumnIfMissing("handle_user", "ALTER TABLE feedback_record ADD COLUMN handle_user VARCHAR(64) NULL AFTER status");
-        addColumnIfMissing("handle_note", "ALTER TABLE feedback_record ADD COLUMN handle_note VARCHAR(255) NULL AFTER handle_user");
-        addColumnIfMissing("handle_time", "ALTER TABLE feedback_record ADD COLUMN handle_time DATETIME NULL AFTER handle_note");
+        addColumnIfMissing("submitter_ip", "ALTER TABLE feedback_record ADD COLUMN submitter_ip VARCHAR(64) NULL COMMENT '提交者IP地址' AFTER device_fingerprint");
+        addColumnIfMissing("handle_user", "ALTER TABLE feedback_record ADD COLUMN handle_user VARCHAR(64) NULL COMMENT '处理人' AFTER status");
+        addColumnIfMissing("handle_note", "ALTER TABLE feedback_record ADD COLUMN handle_note VARCHAR(255) NULL COMMENT '处理备注' AFTER handle_user");
+        addColumnIfMissing("handle_time", "ALTER TABLE feedback_record ADD COLUMN handle_time DATETIME NULL COMMENT '处理时间' AFTER handle_note");
     }
 
     public R<Map<String, Object>> submit(String qsId,
@@ -135,11 +135,28 @@ public class FeedbackService {
         String companyId = "";
         String batchId = "";
         String qrStatus = "unknown";
+        Integer maxAllowedScans = null;
         Object qsCodeRaw = traceResp.getData().get("qsCode");
         if (qsCodeRaw instanceof Map<?, ?> qsCodeMap) {
             companyId = stringValue(qsCodeMap.get("companyId"));
             batchId = stringValue(qsCodeMap.get("batchId"));
             qrStatus = stringValue(qsCodeMap.get("status"));
+            Object maxScansObj = qsCodeMap.get("maxAllowedScans");
+            if (maxScansObj != null) {
+                try {
+                    maxAllowedScans = Integer.parseInt(String.valueOf(maxScansObj));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        
+        if (maxAllowedScans == null) {
+            Integer dbMaxScans = queryMaxAllowedScansFromDb(qsId.trim());
+            if (dbMaxScans != null) {
+                maxAllowedScans = dbMaxScans;
+            } else {
+                maxAllowedScans = 5;
+            }
         }
 
         String feedbackId = generateFeedbackId();
@@ -153,7 +170,15 @@ public class FeedbackService {
         int scanCount = countScan(qsId.trim());
         int oldFeedbackCount = countFeedback(qsId.trim());
         int newFeedbackCount = oldFeedbackCount + 1;
-        double complaintRate = newFeedbackCount / (double) Math.max(1, scanCount);
+        
+        double complaintRate = 0.0;
+        double thresholdRate = 0.4;
+        int scanThreshold = (int) Math.ceil(maxAllowedScans * thresholdRate);
+        
+        if (scanCount >= scanThreshold) {
+            complaintRate = newFeedbackCount / (double) Math.max(1, scanCount);
+        }
+        
         String riskLevel = decideRiskLevel(complaintRate);
 
         jdbcTemplate.update(
@@ -187,7 +212,8 @@ public class FeedbackService {
         result.put("riskLevel", riskLevel);
         result.put("proofSuccess", proofSuccess);
         result.put("alertTriggered", alertTriggered);
-        result.put("message", "反馈已存证，编号 " + feedbackId + "，可用于进度查询");
+        String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        result.put("message", "[" + currentTime + "] 反馈已存证，编号 " + feedbackId + "，可用于进度查询");
         result.put("statusQueryPath", "/scan/feedback/status/" + feedbackId);
         result.put("imagePath", "/scan/feedback/image/" + imageFileName);
         return R.ok(result);
@@ -541,6 +567,18 @@ public class FeedbackService {
             return "-";
         }
         return value.trim();
+    }
+    
+    private Integer queryMaxAllowedScansFromDb(String qsId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    "SELECT max_allowed_scans FROM yx_trace_core.qs_code WHERE qs_id = ?",
+                    Integer.class,
+                    qsId
+            );
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 }
 

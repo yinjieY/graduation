@@ -28,6 +28,25 @@ export function getAlertList(params, token) {
   return apiFetch(`/alert/list?${query}`, { headers: authHeaders(token) });
 }
 
+export function getUnreadAlertCount(token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/alert/unread/count?companyId=${encodeURIComponent(companyId)}`, {
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch('/alert/unread/count', {
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
 // 规则管理
 export function getAlertRules(token) {
   return apiFetch('/alert/rules', { headers: authHeaders(token) });

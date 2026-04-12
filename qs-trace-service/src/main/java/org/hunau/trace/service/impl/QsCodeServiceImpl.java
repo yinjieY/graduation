@@ -133,7 +133,7 @@ public class QsCodeServiceImpl implements QsCodeService {
     private String buildScanEntryUrl(String qsId, String batchId, String companyId, String signPayload, String signature) {
         String encodedPayload = URLEncoder.encode(signPayload, StandardCharsets.UTF_8);
         String encodedSignature = URLEncoder.encode(signature, StandardCharsets.UTF_8);
-        return "http://localhost:9090/trace/scan/index.html"
+        return "http://localhost:5173/#/scan"
                 + "?qsId=" + qsId
                 + "&batchId=" + batchId
                 + "&companyId=" + companyId
@@ -307,6 +307,39 @@ public class QsCodeServiceImpl implements QsCodeService {
         if ("frozen".equals(status) || "cancelled".equals(status)) {
             try {
                 traceExternalClient.saveFreezeProof(qsId, status, "status_changed_by_trace_service");
+            } catch (Exception ignored) {
+                // Keep status update available even if block service is down.
+            }
+        }
+        return getByQsId(qsId);
+    }
+
+    @Override
+    public R<?> changeStatusBySystem(String qsId, String status) {
+        AssertUtil.notEmpty(qsId, "qsId不能为空");
+        AssertUtil.notEmpty(status, "目标状态不能为空");
+        if (!ALLOWED_STATUS.contains(status)) {
+            throw new BusinessException("不支持的二维码状态: " + status);
+        }
+
+        QsCode qsCode = qsCodeMapper.selectById(qsId);
+        if (qsCode == null) {
+            throw new BusinessException("二维码不存在");
+        }
+
+        LambdaUpdateWrapper<QsCode> updateWrapper = new LambdaUpdateWrapper<QsCode>()
+                .eq(QsCode::getQsId, qsId)
+                .set(QsCode::getStatus, status);
+        if ("frozen".equals(status)) {
+            updateWrapper.set(QsCode::getFreezeTime, LocalDateTime.now());
+        } else {
+            updateWrapper.set(QsCode::getFreezeTime, null);
+        }
+        qsCodeMapper.update(null, updateWrapper);
+
+        if ("frozen".equals(status) || "cancelled".equals(status)) {
+            try {
+                traceExternalClient.saveFreezeProof(qsId, status, "status_changed_by_system");
             } catch (Exception ignored) {
                 // Keep status update available even if block service is down.
             }

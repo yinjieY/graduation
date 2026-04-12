@@ -17,7 +17,7 @@ import java.util.Map;
 )
 public interface TraceFeignClient {
 
-    @PutMapping("/trace/qs/{qsId}/status/internal")
+    @PutMapping("/trace/qs/{qsId}/status/system")
     R<?> changeStatus(@PathVariable("qsId") String qsId, @RequestBody Map<String, Object> body);
 }
 

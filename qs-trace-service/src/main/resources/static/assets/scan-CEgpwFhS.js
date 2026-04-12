@@ -1,0 +1,1 @@
+import{O as n,P as o}from"./index-DdxpsHrL.js";function a(e){return n(`/trace/query/${encodeURIComponent(e)}`)}function s(e){return n("/scan/report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(e)})}function c(e,r){return n(`/scan/logs/${encodeURIComponent(e)}`,{headers:o(r)})}export{c as g,a as q,s as r};

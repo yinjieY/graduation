@@ -43,13 +43,12 @@
         </div>
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>二维码ID</th><th>批次ID</th><th>批次名称</th><th>企业ID</th><th>企业名</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+            <thead><tr><th>二维码ID</th><th>批次ID</th><th>企业ID</th><th>企业名</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
             <tbody>
-            <tr v-if="qrcodes.length === 0"><td colspan="8" class="empty-state">暂无二维码数据</td></tr>
+            <tr v-if="qrcodes.length === 0"><td colspan="7" class="empty-state">暂无二维码数据</td></tr>
             <tr v-for="item in qrcodes" :key="item.qrcodeId">
               <td>{{ item.qrcodeId }}</td>
               <td>{{ item.batchId }}</td>
-              <td>{{ item.batchName || '-' }}</td>
               <td>{{ item.companyId }}</td>
               <td class="company-name">{{ item.companyName }}</td>
               <td>

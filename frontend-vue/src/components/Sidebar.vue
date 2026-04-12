@@ -16,6 +16,7 @@
           <router-link :to="item.path" :title="isCollapsed ? item.label : ''">
             <span class="nav-icon">{{ item.icon }}</span>
             <span v-if="!isCollapsed" class="nav-text">{{ item.label }}</span>
+            <span v-if="item.path === '/company/alert' && unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
           </router-link>
         </li>
       </ul>
@@ -30,55 +31,70 @@
   </div>
 </template>
 
-<script setup>
-import { computed } from 'vue';
+<script setup>import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { clearToken } from '../api/session';
 import { useSidebarState } from '../composables/useSidebar';
-
+import { useApi, handleApiError } from '../composables/useApi';
 const props = defineProps({
-  role: {
-    type: String,
-    required: true,
-    validator: (value) => ['admin', 'company'].includes(value)
-  }
+ role: {
+ type: String,
+ required: true,
+ validator: (value) => ['admin', 'company'].includes(value)
+ }
 });
-
 const router = useRouter();
 const route = useRoute();
 const { isCollapsed, toggleCollapse } = useSidebarState();
-
+const api = useApi();
+const unreadCount = ref(0);
 const navItems = computed(() => {
-  if (props.role === 'admin') {
-    return [
-      { path: '/admin/dashboard', label: '工作台', icon: '📊' },
-      { path: '/admin/enterprise', label: '企业管理', icon: '🏢' },
-      { path: '/admin/batch-review', label: '批次审核', icon: '📦' },
-      { path: '/admin/qrcode', label: '二维码管理', icon: '📱' },
-      { path: '/admin/feedback', label: '反馈处理', icon: '💬' },
-      { path: '/admin/message', label: '系统消息', icon: '📋' }
-    ];
-  } else {
-    return [
-      { path: '/company/dashboard', label: '工作台', icon: '📊' },
-      { path: '/company/info', label: '企业信息', icon: '🏭' },
-      { path: '/company/batch', label: '生产批次', icon: '📦' },
-      { path: '/company/qrcode', label: '溯源码管理', icon: '📱' },
-      { path: '/company/alert', label: '预警中心', icon: '⚠' },
-      { path: '/company/stats', label: '数据统计', icon: '📈' },
-      { path: '/company/auth', label: '资质认证', icon: '📄' },
-      { path: '/company/feedback', label: '反馈管理', icon: '💬' },
-      { path: '/company/message', label: '消息中心', icon: '📋' }
-    ];
-  }
+ if (props.role === 'admin') {
+ return [
+ { path: '/admin/dashboard', label: '工作台', icon: '📊' },
+ { path: '/admin/enterprise', label: '企业管理', icon: '🏢' },
+ { path: '/admin/batch-review', label: '批次审核', icon: '📦' },
+ { path: '/admin/qrcode', label: '二维码管理', icon: '📱' },
+ { path: '/admin/feedback', label: '反馈处理', icon: '💬' },
+ { path: '/admin/message', label: '系统消息', icon: '📋' }
+ ];
+ }
+ else {
+ return [
+ { path: '/company/dashboard', label: '工作台', icon: '📊' },
+ { path: '/company/info', label: '企业信息', icon: '🏭' },
+ { path: '/company/batch', label: '生产批次', icon: '📦' },
+ { path: '/company/qrcode', label: '溯源码管理', icon: '📱' },
+ { path: '/company/alert', label: '预警中心', icon: '⚠' },
+ { path: '/company/stats', label: '数据统计', icon: '📈' },
+ { path: '/company/auth', label: '资质认证', icon: '📄' },
+ { path: '/company/feedback', label: '反馈管理', icon: '💬' },
+ { path: '/company/message', label: '消息中心', icon: '📋' }
+ ];
+ }
 });
-
 const currentPath = computed(() => route.path);
-
-function logout() {
-  clearToken(props.role);
-  router.push(props.role === 'admin' ? '/admin/login' : '/company/login');
+async function loadUnreadCount() {
+ if (props.role !== 'company')
+ return;
+ try {
+ const token = localStorage.getItem('company_token');
+ if (!token)
+ return;
+ const result = await api.getUnreadAlertCount(token);
+ unreadCount.value = result.unreadCount || 0;
+ }
+ catch (error) {
+ console.error('获取未读预警数量失败:', handleApiError(error));
+ }
 }
+function logout() {
+ clearToken(props.role);
+ router.push(props.role === 'admin' ? '/admin/login' : '/company/login');
+}
+onMounted(() => {
+ loadUnreadCount();
+});
 </script>
 
 <style scoped>
@@ -251,6 +267,29 @@ function logout() {
   color: #f8fafc;
   border-left: 3px solid #3b82f6;
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+/* 红点提示徽章 */
+.badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.5);
+}
+
+.sidebar.collapsed .badge {
+  right: 4px;
 }
 
 /* 导航图标 */

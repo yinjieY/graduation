@@ -13,4 +13,6 @@ public interface QsCodeService {
     R<?> listByCompanyId(String companyId);
 
     R<?> changeStatus(String qsId, String status);
+
+    R<?> changeStatusBySystem(String qsId, String status);
 }

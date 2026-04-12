@@ -17,31 +17,49 @@
         </select>
       </div>
       
-      <div class="alert-list">
-        <div class="alert-item" v-for="alert in alerts" :key="alert.id" :class="`alert-${alert.level}`">
-          <div class="alert-header">
-            <div class="alert-level" :class="`level-${alert.level}`">
-              {{ alert.level === 'HIGH' ? '高风险' : alert.level === 'MEDIUM' ? '中风险' : '低风险' }}
+      <div class="batch-groups">
+        <div v-if="groupedAlerts.length === 0" class="empty-state">
+          <p>暂无预警数据</p>
+        </div>
+        
+        <div v-for="group in groupedAlerts" :key="group.batchId" class="batch-group">
+          <div class="batch-header">
+            <div class="batch-info">
+              <span class="batch-icon">📦</span>
+              <span class="batch-name">{{ group.batchName || group.batchId || '未知批次' }}</span>
             </div>
-            <div class="alert-status" :class="`status-${alert.status}`">
-              {{ alert.status === 'OPEN' ? '未闭环' : '已闭环' }}
-            </div>
-          </div>
-          <div class="alert-content">
-            <h3 class="alert-title">{{ alert.title }}</h3>
-            <p class="alert-description">{{ alert.description }}</p>
-            <div class="alert-meta">
-              <span class="meta-item">时间: {{ alert.createdAt }}</span>
-              <span class="meta-item">关联码: {{ alert.qsId }}</span>
+            <div class="batch-stats">
+              <span class="stat-item">{{ group.alerts.length }} 条预警</span>
+              <span class="stat-item high-count" v-if="group.highCount > 0">高风险 {{ group.highCount }}</span>
             </div>
           </div>
-          <div class="alert-actions">
-            <BaseButton type="primary" size="small" @click="handleViewDetail(alert)">查看详情</BaseButton>
+          
+          <div class="alert-list">
+            <div class="alert-item" v-for="alert in group.alerts" :key="alert.id" :class="`alert-${alert.level}`">
+              <div class="alert-header">
+                <div class="alert-level" :class="`level-${alert.level}`">
+                  {{ alert.level === 'HIGH' ? '高风险' : alert.level === 'MEDIUM' ? '中风险' : '低风险' }}
+                </div>
+                <div class="alert-status" :class="`status-${alert.status}`">
+                  {{ alert.status === 'OPEN' ? '未闭环' : '已闭环' }}
+                </div>
+              </div>
+              <div class="alert-content">
+                <h3 class="alert-title">{{ alert.title }}</h3>
+                <p class="alert-description">{{ alert.description }}</p>
+                <div class="alert-meta">
+                  <span class="meta-item">时间: {{ alert.createdAt }}</span>
+                  <span class="meta-item">关联码: {{ alert.qsId }}</span>
+                </div>
+              </div>
+              <div class="alert-actions">
+                <BaseButton type="primary" size="small" @click="handleViewDetail(alert)">查看详情</BaseButton>
+              </div>
+            </div>
           </div>
         </div>
       </div>
       
-      <!-- 预警详情对话框 -->
       <div v-if="showDetailDialog" class="dialog-overlay" @click="showDetailDialog = false">
         <div class="dialog-content" @click.stop>
           <h2>预警详情</h2>
@@ -57,6 +75,10 @@
               <span :class="`status-${currentAlert.status}`">
                 {{ currentAlert.status === 'OPEN' ? '未闭环' : '已闭环' }}
               </span>
+            </div>
+            <div class="detail-item">
+              <label>所属批次:</label>
+              <span>{{ currentAlert.batchName || currentAlert.batchId || '-' }}</span>
             </div>
             <div class="detail-item">
               <label>预警标题:</label>
@@ -94,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Layout from '../../components/Layout.vue';
 import BaseButton from '../../components/BaseButton.vue';
 import { useApi, handleApiError } from '../../composables/useApi';
@@ -120,25 +142,52 @@ function mapAlert(item) {
     qsId: item.qsId || '-',
     createdAt: item.createdAt || '-',
     processedAt: item.status === 'CLOSED' ? item.createdAt : '',
-    processNote: item.actionResult || ''
+    processNote: item.actionResult || '',
+    batchId: item.batchId || '',
+    batchName: item.batchName || ''
   };
 }
+
+const groupedAlerts = computed(() => {
+  const filtered = alerts.value
+    .filter((item) => !filterLevel.value || item.level === filterLevel.value)
+    .filter((item) => !filterStatus.value || item.status === filterStatus.value);
+
+  const groups = {};
+  filtered.forEach((alert) => {
+    const batchId = alert.batchId || 'unknown';
+    if (!groups[batchId]) {
+      groups[batchId] = {
+        batchId: alert.batchId,
+        batchName: alert.batchName,
+        alerts: [],
+        highCount: 0
+      };
+    }
+    groups[batchId].alerts.push(alert);
+    if (alert.level === 'HIGH') {
+      groups[batchId].highCount++;
+    }
+  });
+
+  return Object.values(groups).sort((a, b) => {
+    const aFirst = a.alerts[0]?.createdAt || '';
+    const bFirst = b.alerts[0]?.createdAt || '';
+    return new Date(bFirst) - new Date(aFirst);
+  });
+});
 
 const handleViewDetail = (alert) => {
   currentAlert.value = alert;
   showDetailDialog.value = true;
 };
 
-
 const loadAlerts = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
     const rows = await api.getAlertList({}, token);
-    alerts.value = (rows || [])
-      .map(mapAlert)
-      .filter((item) => !filterLevel.value || item.level === filterLevel.value)
-      .filter((item) => !filterStatus.value || item.status === filterStatus.value);
+    alerts.value = (rows || []).map(mapAlert);
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -183,23 +232,83 @@ onMounted(() => {
   min-width: 150px;
 }
 
+.batch-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+}
+
+.batch-group {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.batch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.batch-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-icon {
+  font-size: 18px;
+}
+
+.batch-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.batch-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.stat-item {
+  color: #64748b;
+}
+
+.stat-item.high-count {
+  color: #ef4444;
+  font-weight: 500;
+}
+
 .alert-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
 .alert-item {
   padding: 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.alert-item:last-child {
+  border-bottom: none;
 }
 
 .alert-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: #fafafa;
 }
 
 .alert-HIGH {
@@ -260,7 +369,6 @@ onMounted(() => {
   color: #059669;
 }
 
-
 .alert-content {
   margin-bottom: 16px;
 }
@@ -298,7 +406,6 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-/* 对话框样式 */
 .dialog-overlay {
   position: fixed;
   top: 0;
@@ -345,7 +452,7 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 500;
   color: #334155;
-  min-width: 80px;
+  min-width: 100px;
   flex-shrink: 0;
 }
 
@@ -355,7 +462,6 @@ onMounted(() => {
   flex: 1;
   word-break: break-all;
 }
-
 
 .form-actions {
   display: flex;
@@ -380,6 +486,12 @@ onMounted(() => {
   
   .alert-filter select {
     width: 100%;
+  }
+  
+  .batch-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
   
   .alert-header {

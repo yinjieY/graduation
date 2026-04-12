@@ -10,6 +10,8 @@ import org.hunau.alert.rule.RuleEngineResult;
 import org.hunau.common.R;
 import org.hunau.common.RiskLevel;
 import org.hunau.common.util.AssertUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,19 +21,24 @@ import java.util.*;
 @Service
 public class AlertService {
 
+    private static final Logger log = LoggerFactory.getLogger(AlertService.class);
+
     private final AiRiskService aiRiskService;
     private final AlertRuleEngineService alertRuleEngineService;
+    private final AlertTriggerStatusService alertTriggerStatusService;
     private final TraceFeignClient traceFeignClient;
     private final BlockFeignClient blockFeignClient;
     private final JdbcTemplate jdbcTemplate;
 
     public AlertService(AiRiskService aiRiskService,
                         AlertRuleEngineService alertRuleEngineService,
+                        AlertTriggerStatusService alertTriggerStatusService,
                         TraceFeignClient traceFeignClient,
                         BlockFeignClient blockFeignClient,
                         JdbcTemplate jdbcTemplate) {
         this.aiRiskService = aiRiskService;
         this.alertRuleEngineService = alertRuleEngineService;
+        this.alertTriggerStatusService = alertTriggerStatusService;
         this.traceFeignClient = traceFeignClient;
         this.blockFeignClient = blockFeignClient;
         this.jdbcTemplate = jdbcTemplate;
@@ -82,11 +89,39 @@ public class AlertService {
                 + ", province=" + req.getProvince()
                 + ", city=" + req.getCity());
 
+        String ruleId = ruleResult.hitRuleIds().isEmpty() ? "R001" : ruleResult.hitRuleIds().get(0);
+        
         persistAlertRecord(record, ruleResult, level);
+        
+        Long alertId = jdbcTemplate.query(
+                "SELECT alert_id FROM alert_record WHERE qs_id=? ORDER BY alert_id DESC LIMIT 1",
+                rs -> rs.next() ? rs.getLong("alert_id") : null,
+                record.getQsId()
+        );
 
         if (level != RiskLevel.LOW) {
-            notifyRegulator(record);
-            saveEventProof(record);
+            AlertTriggerStatusService.TriggerStatusResult triggerResult = 
+                    alertTriggerStatusService.checkAndUpdateTriggerStatus(
+                            record.getQsId(), 
+                            record.getCompanyId(), 
+                            ruleId, 
+                            level, 
+                            alertId
+                    );
+            
+            if (triggerResult.alreadyTriggered()) {
+                log.info("Alert already triggered for qsId={}, ruleId={}, updating existing status only. " +
+                        "Trigger count: {}, previous alertId: {}", 
+                        record.getQsId(), ruleId, triggerResult.triggerCount(), triggerResult.previousAlertId());
+                
+                updateExistingAlertRecord(record, ruleResult, alertId);
+            } else {
+                log.info("First alert trigger for qsId={}, ruleId={}, sending notification", 
+                        record.getQsId(), ruleId);
+                
+                notifyRegulator(record);
+                saveEventProof(record);
+            }
         }
         if (level == RiskLevel.HIGH) {
             freezeQsCode(record.getQsId());
@@ -95,13 +130,41 @@ public class AlertService {
         return R.ok(record);
     }
 
+    private void updateExistingAlertRecord(AlertRecord record, RuleEngineResult ruleResult, Long alertId) {
+        if (alertId == null) {
+            return;
+        }
+        String reason = buildAlertReason(ruleResult, record.getRiskScore());
+        
+        jdbcTemplate.update(
+                "UPDATE alert_record SET detail=?, reason=?, updated_at=NOW() WHERE alert_id=?",
+                record.getDetail(),
+                reason,
+                alertId
+        );
+        
+        jdbcTemplate.update(
+                "INSERT INTO alert_action(alert_id,action_type,result,push_status,retry_count) VALUES (?,?,?,?,?)",
+                alertId,
+                "update",
+                "告警内容已更新",
+                "success",
+                0
+        );
+        
+        log.info("Updated existing alert record: alertId={}, qsId={}, reason={}", alertId, record.getQsId(), reason);
+    }
+
     public R<List<Map<String, Object>>> list(String role, String companyId) {
         String normalizedRole = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
         String normalizedCompanyId = companyId == null ? "" : companyId.trim();
 
         String baseSql = "SELECT ar.alert_id,ar.qs_id,ar.company_id,ar.alert_level,ar.reason,ar.detail,ar.created_at,ar.status," +
-                "aa.result AS action_result,aa.push_status AS push_status " +
+                "aa.result AS action_result,aa.push_status AS push_status, " +
+                "qc.batch_id, pb.batch_name " +
                 "FROM alert_record ar " +
+                "LEFT JOIN yx_trace_core.qs_code qc ON ar.qs_id = qc.qs_id " +
+                "LEFT JOIN yx_trace_core.product_batch pb ON qc.batch_id = pb.batch_id " +
                 "LEFT JOIN (" +
                 "  SELECT t1.alert_id,t1.result,t1.push_status FROM alert_action t1 " +
                 "  INNER JOIN (SELECT alert_id,MAX(action_id) max_id FROM alert_action GROUP BY alert_id) t2 " +
@@ -110,22 +173,41 @@ public class AlertService {
 
         List<Map<String, Object>> result;
         if (!normalizedCompanyId.isBlank()) {
-            // 无论角色是什么，只要提供了 companyId，就根据 companyId 过滤
             result = jdbcTemplate.query(
                     baseSql + "WHERE ar.company_id=? ORDER BY ar.alert_id DESC LIMIT 500",
-                    (rs, rowNum) -> mapMessageRow(rs),
+                    (rs, rowNum) -> mapMessageRowWithBatch(rs),
                     normalizedCompanyId
             );
         } else if ("COMPANY".equals(normalizedRole)) {
-            // 如果是 COMPANY 角色但没有提供 companyId，返回空列表
             result = new ArrayList<>();
         } else {
-            // 其他情况（ADMIN 或未登录）返回全量消息
             result = jdbcTemplate.query(
                     baseSql + "ORDER BY ar.alert_id DESC LIMIT 500",
-                    (rs, rowNum) -> mapMessageRow(rs)
+                    (rs, rowNum) -> mapMessageRowWithBatch(rs)
             );
         }
+
+        return R.ok(result);
+    }
+
+    public R<Map<String, Object>> countUnread(String companyId) {
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+        
+        String sql = "SELECT COUNT(*) as count FROM alert_record WHERE status='open'";
+        Map<String, Object> result = new HashMap<>();
+        
+        if (!normalizedCompanyId.isBlank()) {
+            Integer count = jdbcTemplate.queryForObject(
+                    sql + " AND company_id=?",
+                    Integer.class,
+                    normalizedCompanyId
+            );
+            result.put("unreadCount", count != null ? count : 0);
+        } else {
+            Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+            result.put("unreadCount", count != null ? count : 0);
+        }
+        
         return R.ok(result);
     }
 
@@ -271,7 +353,7 @@ public class AlertService {
             return;
         }
         String ruleId = ruleResult.hitRuleIds().isEmpty() ? "R001" : ruleResult.hitRuleIds().get(0);
-        String reason = ruleResult.hitReasons().isEmpty() ? "风险评分触发" : ruleResult.hitReasons().get(0);
+        String reason = buildAlertReason(ruleResult, record.getRiskScore());
         String status = "open";
         int alertLevel = toAlertLevel(level);
 
@@ -285,6 +367,21 @@ public class AlertService {
                 record.getDetail(),
                 status
         );
+    }
+
+    private String buildAlertReason(RuleEngineResult ruleResult, double riskScore) {
+        if (!ruleResult.hitRuleIds().isEmpty() && !ruleResult.hitReasons().isEmpty()) {
+            return "规则引擎判定: " + ruleResult.hitReasons().get(0);
+        }
+        
+        if (riskScore >= 0.75) {
+            return "AI模型判定: 高风险评分(" + String.format("%.2f", riskScore) + ")";
+        }
+        if (riskScore >= 0.45) {
+            return "AI模型判定: 中等风险评分(" + String.format("%.2f", riskScore) + ")";
+        }
+        
+        return "风险评分触发(" + String.format("%.2f", riskScore) + ")";
     }
 
     private void persistNotifyAction(AlertRecord record, String result) {
@@ -384,6 +481,23 @@ public class AlertService {
         row.put("actionResult", rs.getString("action_result"));
         row.put("pushStatus", rs.getString("push_status"));
         row.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
+        return row;
+    }
+
+    private Map<String, Object> mapMessageRowWithBatch(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("alertId", rs.getLong("alert_id"));
+        row.put("qsId", rs.getString("qs_id"));
+        row.put("companyId", rs.getString("company_id"));
+        row.put("alertLevel", toRiskLevel(rs.getInt("alert_level")).name());
+        row.put("reason", rs.getString("reason"));
+        row.put("detail", rs.getString("detail"));
+        row.put("status", "open".equalsIgnoreCase(rs.getString("status")) ? "OPEN" : "CLOSED");
+        row.put("actionResult", rs.getString("action_result"));
+        row.put("pushStatus", rs.getString("push_status"));
+        row.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
+        row.put("batchId", rs.getString("batch_id"));
+        row.put("batchName", rs.getString("batch_name"));
         return row;
     }
 }

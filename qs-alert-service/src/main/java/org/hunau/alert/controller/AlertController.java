@@ -39,6 +39,13 @@ public class AlertController {
         return alertService.list(role, companyId);
     }
 
+    @GetMapping("/unread/count")
+    public R<?> countUnread(@RequestParam(value = "companyId", required = false) String companyIdParam,
+                            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
+        return alertService.countUnread(companyId);
+    }
+
     @PostMapping("/messages/feedback")
     public R<?> createFeedbackMessage(@RequestBody FeedbackMessageRequest request) {
         return alertService.createFeedbackMessage(request);

@@ -24,7 +24,7 @@ public class ResourceSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/scan/report", "/scan/reuse/refresh", "/scan/reuse/**").permitAll()
+                        .requestMatchers("/scan/report", "/scan/reuse/refresh", "/scan/reuse/**", "/scan/feedback/submit").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthFilter(), UsernamePasswordAuthenticationFilter.class);

@@ -351,8 +351,14 @@ public class ScanLogService {
         Integer maxAllowedScans = intValue(qsCodeMap.get("maxAllowedScans"));
         if (maxAllowedScans != null && maxAllowedScans > 0) {
             int scanned = countTotalScans(req.getQsId());
-            if (scanned >= maxAllowedScans) {
-                return "二维码不可用：已达到最大扫码次数(" + maxAllowedScans + ")";
+            int freezeThreshold = maxAllowedScans * 3;
+            if (scanned >= freezeThreshold) {
+                try {
+                    Map<String, Object> body = new HashMap<>();
+                    body.put("status", "frozen");
+                    traceFeignClient.changeStatus(req.getQsId(), body);
+                } catch (Exception ignored) {}
+                return "二维码不可用：扫码次数异常，已冻结(" + scanned + "/" + freezeThreshold + ")";
             }
         }
         return null;
