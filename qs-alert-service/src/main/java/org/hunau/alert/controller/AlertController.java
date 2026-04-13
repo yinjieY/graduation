@@ -46,6 +46,21 @@ public class AlertController {
         return alertService.countUnread(companyId);
     }
 
+    @PostMapping("/{alertId}/read")
+    public R<?> markAsRead(@PathVariable Long alertId,
+                           @RequestParam(value = "companyId", required = false) String companyIdParam,
+                           @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
+        return alertService.markAsRead(alertId, companyId);
+    }
+
+    @PostMapping("/read/all")
+    public R<?> markAllAsRead(@RequestParam(value = "companyId", required = false) String companyIdParam,
+                              @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
+        return alertService.markAllAsRead(companyId);
+    }
+
     @PostMapping("/messages/feedback")
     public R<?> createFeedbackMessage(@RequestBody FeedbackMessageRequest request) {
         return alertService.createFeedbackMessage(request);

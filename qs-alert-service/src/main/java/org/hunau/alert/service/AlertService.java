@@ -161,10 +161,8 @@ public class AlertService {
 
         String baseSql = "SELECT ar.alert_id,ar.qs_id,ar.company_id,ar.alert_level,ar.reason,ar.detail,ar.created_at,ar.status," +
                 "aa.result AS action_result,aa.push_status AS push_status, " +
-                "qc.batch_id, pb.batch_name " +
+                "ar.batch_id, ar.batch_name " +
                 "FROM alert_record ar " +
-                "LEFT JOIN yx_trace_core.qs_code qc ON ar.qs_id = qc.qs_id " +
-                "LEFT JOIN yx_trace_core.product_batch pb ON qc.batch_id = pb.batch_id " +
                 "LEFT JOIN (" +
                 "  SELECT t1.alert_id,t1.result,t1.push_status FROM alert_action t1 " +
                 "  INNER JOIN (SELECT alert_id,MAX(action_id) max_id FROM alert_action GROUP BY alert_id) t2 " +
@@ -174,41 +172,151 @@ public class AlertService {
         List<Map<String, Object>> result;
         if (!normalizedCompanyId.isBlank()) {
             result = jdbcTemplate.query(
-                    baseSql + "WHERE ar.company_id=? ORDER BY ar.alert_id DESC LIMIT 500",
-                    (rs, rowNum) -> mapMessageRowWithBatch(rs),
+                    baseSql + "WHERE ar.company_id=? ORDER BY ar.created_at DESC LIMIT 500",
+                    (rs, rowNum) -> mapMessageRowWithRead(rs, normalizedCompanyId),
                     normalizedCompanyId
             );
         } else if ("COMPANY".equals(normalizedRole)) {
             result = new ArrayList<>();
         } else {
             result = jdbcTemplate.query(
-                    baseSql + "ORDER BY ar.alert_id DESC LIMIT 500",
-                    (rs, rowNum) -> mapMessageRowWithBatch(rs)
+                    baseSql + "ORDER BY ar.created_at DESC LIMIT 500",
+                    (rs, rowNum) -> mapMessageRowWithRead(rs, null)
             );
         }
 
-        return R.ok(result);
+        return R.ok(groupByBatch(result));
     }
 
     public R<Map<String, Object>> countUnread(String companyId) {
         String normalizedCompanyId = companyId == null ? "" : companyId.trim();
-        
-        String sql = "SELECT COUNT(*) as count FROM alert_record WHERE status='open'";
         Map<String, Object> result = new HashMap<>();
         
         if (!normalizedCompanyId.isBlank()) {
-            Integer count = jdbcTemplate.queryForObject(
-                    sql + " AND company_id=?",
-                    Integer.class,
-                    normalizedCompanyId
-            );
+            String sql = "SELECT COUNT(*) as count FROM alert_record ar " +
+                    "WHERE ar.status='open' AND ar.company_id=? " +
+                    "AND NOT EXISTS (SELECT 1 FROM alert_read r WHERE r.alert_id=ar.alert_id AND r.company_id=?)";
+            Integer count = jdbcTemplate.queryForObject(sql, Integer.class, normalizedCompanyId, normalizedCompanyId);
             result.put("unreadCount", count != null ? count : 0);
         } else {
+            String sql = "SELECT COUNT(*) as count FROM alert_record WHERE status='open'";
             Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
             result.put("unreadCount", count != null ? count : 0);
         }
         
         return R.ok(result);
+    }
+
+    public R<Map<String, Object>> markAsRead(Long alertId, String companyId) {
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+        AssertUtil.notNull(alertId, "alertId不能为空");
+        AssertUtil.notEmpty(normalizedCompanyId, "companyId不能为空");
+        
+        jdbcTemplate.update(
+                "INSERT IGNORE INTO alert_read(alert_id, company_id, read_time) VALUES (?, ?, NOW())",
+                alertId,
+                normalizedCompanyId
+        );
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("alertId", alertId);
+        result.put("marked", true);
+        return R.ok(result);
+    }
+
+    public R<Map<String, Object>> markAllAsRead(String companyId) {
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+        AssertUtil.notEmpty(normalizedCompanyId, "companyId不能为空");
+        
+        jdbcTemplate.update(
+                "INSERT INTO alert_read(alert_id, company_id, read_time) " +
+                "SELECT ar.alert_id, ?, NOW() FROM alert_record ar " +
+                "WHERE ar.company_id=? AND ar.status='open' " +
+                "AND NOT EXISTS (SELECT 1 FROM alert_read r WHERE r.alert_id=ar.alert_id AND r.company_id=?)",
+                normalizedCompanyId,
+                normalizedCompanyId,
+                normalizedCompanyId
+        );
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("marked", true);
+        return R.ok(result);
+    }
+
+    private List<Map<String, Object>> groupByBatch(List<Map<String, Object>> alerts) {
+        Map<String, Map<String, Object>> batchGroups = new LinkedHashMap<>();
+        
+        for (Map<String, Object> alert : alerts) {
+            String batchId = (String) alert.getOrDefault("batchId", "");
+            String batchName = (String) alert.getOrDefault("batchName", "未命名批次");
+            
+            if (batchId == null || batchId.isBlank()) {
+                batchId = "_unassigned";
+            }
+            
+            if (!batchGroups.containsKey(batchId)) {
+                Map<String, Object> group = new LinkedHashMap<>();
+                group.put("batchId", "_unassigned".equals(batchId) ? null : batchId);
+                group.put("batchName", batchName);
+                group.put("alerts", new ArrayList<Map<String, Object>>());
+                group.put("highRiskCount", 0);
+                group.put("mediumRiskCount", 0);
+                batchGroups.put(batchId, group);
+            }
+            
+            Map<String, Object> group = batchGroups.get(batchId);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> alertList = (List<Map<String, Object>>) group.get("alerts");
+            alertList.add(alert);
+            
+            String alertLevel = (String) alert.get("alertLevel");
+            if ("HIGH".equals(alertLevel)) {
+                group.put("highRiskCount", (Integer) group.get("highRiskCount") + 1);
+            } else if ("MEDIUM".equals(alertLevel)) {
+                group.put("mediumRiskCount", (Integer) group.get("mediumRiskCount") + 1);
+            }
+        }
+        
+        List<Map<String, Object>> result = new ArrayList<>(batchGroups.values());
+        result.sort((a, b) -> {
+            int highA = (Integer) a.get("highRiskCount");
+            int highB = (Integer) b.get("highRiskCount");
+            if (highB != highA) return highB - highA;
+            
+            int mediumA = (Integer) a.get("mediumRiskCount");
+            int mediumB = (Integer) b.get("mediumRiskCount");
+            return mediumB - mediumA;
+        });
+        
+        return result;
+    }
+
+    private Map<String, Object> mapMessageRowWithRead(java.sql.ResultSet rs, String companyId) throws java.sql.SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("alertId", rs.getLong("alert_id"));
+        row.put("qsId", rs.getString("qs_id"));
+        row.put("companyId", rs.getString("company_id"));
+        row.put("alertLevel", toRiskLevel(rs.getInt("alert_level")).name());
+        row.put("reason", rs.getString("reason"));
+        row.put("detail", rs.getString("detail"));
+        row.put("status", "open".equalsIgnoreCase(rs.getString("status")) ? "OPEN" : "CLOSED");
+        row.put("actionResult", rs.getString("action_result"));
+        row.put("pushStatus", rs.getString("push_status"));
+        row.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
+        row.put("batchId", rs.getString("batch_id"));
+        row.put("batchName", rs.getString("batch_name"));
+        
+        if (companyId != null && !companyId.isBlank()) {
+            Boolean isRead = jdbcTemplate.queryForObject(
+                    "SELECT EXISTS(SELECT 1 FROM alert_read WHERE alert_id=? AND company_id=?)",
+                    Boolean.class,
+                    rs.getLong("alert_id"),
+                    companyId
+            );
+            row.put("isRead", isRead != null && isRead);
+        }
+        
+        return row;
     }
 
     public R<Map<String, Object>> createFeedbackMessage(FeedbackMessageRequest request) {
@@ -230,14 +338,20 @@ public class AlertService {
                 + ", complaintRate=" + String.format(Locale.ROOT, "%.6f", complaintRate)
                 + ", source=feedback_flow";
 
+        Map<String, Object> qsInfo = fetchQsCodeInfo(request.getQsId());
+        String batchId = (String) qsInfo.get("batchId");
+        String batchName = (String) qsInfo.get("batchName");
+
         jdbcTemplate.update(
-                "INSERT INTO alert_record(qs_id,company_id,rule_id,alert_level,reason,detail,created_at,status) VALUES (?,?,?,?,?,?,NOW(),'open')",
+                "INSERT INTO alert_record(qs_id,company_id,rule_id,alert_level,reason,detail,created_at,status,batch_id,batch_name) VALUES (?,?,?,?,?,?,NOW(),'open',?,?)",
                 request.getQsId().trim(),
                 request.getCompanyId().trim(),
                 "R001",
                 alertLevel,
                 reason,
-                detail
+                detail,
+                batchId,
+                batchName
         );
 
         Long alertId = jdbcTemplate.query(
@@ -357,16 +471,51 @@ public class AlertService {
         String status = "open";
         int alertLevel = toAlertLevel(level);
 
+        String batchId = record.getBatchId();
+        String batchName = record.getBatchName();
+        
+        if (batchId == null || batchId.isBlank()) {
+            Map<String, Object> qsInfo = fetchQsCodeInfo(record.getQsId());
+            batchId = (String) qsInfo.get("batchId");
+            batchName = (String) qsInfo.get("batchName");
+        }
+
         jdbcTemplate.update(
-                "INSERT INTO alert_record(qs_id,company_id,rule_id,alert_level,reason,detail,created_at,status) VALUES (?,?,?,?,?,?,NOW(),?)",
+                "INSERT INTO alert_record(qs_id,company_id,rule_id,alert_level,reason,detail,created_at,status,batch_id,batch_name) VALUES (?,?,?,?,?,?,NOW(),?,?,?)",
                 record.getQsId(),
                 record.getCompanyId(),
                 ruleId,
                 alertLevel,
                 reason,
                 record.getDetail(),
-                status
+                status,
+                batchId,
+                batchName
         );
+    }
+
+    private Map<String, Object> fetchQsCodeInfo(String qsId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            R<?> response = traceFeignClient.getQsCodeDetail(qsId);
+            if (response != null && response.getCode() == 200 && response.getData() != null) {
+                Map<String, Object> data = (Map<String, Object>) response.getData();
+                Map<String, Object> batch = (Map<String, Object>) data.get("batch");
+                if (batch != null) {
+                    result.put("batchId", batch.get("batchId"));
+                    result.put("batchName", batch.get("batchName"));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch QS code info for qsId={}: {}", qsId, e.getMessage());
+        }
+        if (result.get("batchId") == null) {
+            result.put("batchId", "");
+        }
+        if (result.get("batchName") == null) {
+            result.put("batchName", "未知批次");
+        }
+        return result;
     }
 
     private String buildAlertReason(RuleEngineResult ruleResult, double riskScore) {

@@ -138,12 +138,12 @@ export function getQrCodeList(token) {
     const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
     const companyId = userInfo.companyId || '';
     if (companyId) {
-      return apiFetch(`/trace/qs/list?companyId=${encodeURIComponent(companyId)}`, { headers: authHeaders(token) });
+      return apiFetch(`/trace/qs/list?companyId=${encodeURIComponent(companyId)}`, { headers: authHeaders(token), noCache: true });
     }
   } catch (error) {
     console.error('获取companyId失败:', error);
   }
-  return apiFetch('/trace/qs/list', { headers: authHeaders(token) });
+  return apiFetch('/trace/qs/list', { headers: authHeaders(token), noCache: true });
 }
 
 export function updateQrCodeStatus(qrCodeId, status, token) {

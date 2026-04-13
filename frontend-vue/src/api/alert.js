@@ -81,6 +81,14 @@ export function reloadRules(token) {
   });
 }
 
+export function markAlertAsRead(alertId, token) {
+  return apiFetch(`/alert/${encodeURIComponent(alertId)}/read`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
 // 风险评估
 export function evaluateRisk(payload, token) {
   return apiFetch('/alert/evaluate', {

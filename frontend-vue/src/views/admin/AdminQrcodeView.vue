@@ -143,6 +143,7 @@
 import { onMounted, ref } from 'vue';
 import { getQrCodeList, updateQrCodeStatus } from '../../api/trace';
 import { getToken } from '../../api/session';
+import { clearCacheByUrl } from '../../api/http';
 import Layout from '../../components/Layout.vue';
 
 const loading = ref(false);
@@ -178,7 +179,11 @@ function toViewModel(item) {
 
 async function fetchQrcodes() {
   const res = await getQrCodeList(token.value);
-  return (res.data || []).map(toViewModel);
+  if (!res || !res.data) {
+    console.warn('获取二维码列表返回数据异常:', res);
+    return [];
+  }
+  return res.data.map(toViewModel);
 }
 
 async function loadPendingQrcodes() {
@@ -187,6 +192,7 @@ async function loadPendingQrcodes() {
   try {
     const rows = await fetchQrcodes();
     pendingQrcodes.value = rows.filter((item) => item.status === 'PENDING');
+    console.log('待审二维码列表加载完成:', pendingQrcodes.value.length, '条');
   } catch (err) {
     console.error('加载待审二维码失败:', err);
     error.value = `加载失败: ${err.message || '未知错误'}`;
@@ -199,7 +205,9 @@ async function loadAllQrcodes() {
   loading.value = true;
   error.value = '';
   try {
-    qrcodes.value = await fetchQrcodes();
+    const newQrcodes = await fetchQrcodes();
+    qrcodes.value = [...newQrcodes];
+    console.log('所有二维码列表加载完成:', qrcodes.value.length, '条');
   } catch (err) {
     console.error('加载二维码列表失败:', err);
     error.value = `加载失败: ${err.message || '未知错误'}`;
@@ -236,11 +244,18 @@ async function searchQrcodes() {
 
 async function reviewQrcode(qrcodeId, approved) {
   loading.value = true;
+  error.value = '';
   try {
-    await updateQrCodeStatus(qrcodeId, approved ? 'active' : 'invalid', token.value);
+    const response = await updateQrCodeStatus(qrcodeId, approved ? 'active' : 'invalid', token.value);
+    if (!response || response.code !== 200) {
+      throw new Error(response?.msg || '审核失败');
+    }
+    clearCacheByUrl('/trace/qs/list');
     await loadPendingQrcodes();
     await loadAllQrcodes();
+    console.log(`二维码 ${qrcodeId} 审核${approved ? '通过' : '拒绝'}成功`);
   } catch (err) {
+    console.error(`二维码审核失败:`, err);
     error.value = `审核二维码失败: ${err.message || '未知错误'}`;
   } finally {
     loading.value = false;
@@ -249,10 +264,17 @@ async function reviewQrcode(qrcodeId, approved) {
 
 async function freezeQrcode(qrcodeId, frozen) {
   loading.value = true;
+  error.value = '';
   try {
-    await updateQrCodeStatus(qrcodeId, frozen ? 'frozen' : 'active', token.value);
+    const response = await updateQrCodeStatus(qrcodeId, frozen ? 'frozen' : 'active', token.value);
+    if (!response || response.code !== 200) {
+      throw new Error(response?.msg || '操作失败');
+    }
+    clearCacheByUrl('/trace/qs/list');
     await loadAllQrcodes();
+    console.log(`二维码 ${qrcodeId} ${frozen ? '冻结' : '解冻'} 成功`);
   } catch (err) {
+    console.error(`二维码操作失败:`, err);
     error.value = `操作二维码失败: ${err.message || '未知错误'}`;
   } finally {
     loading.value = false;

@@ -15,6 +15,9 @@ public class ProductBatch {
     @TableId(value = "batch_id", type = IdType.INPUT)
     private String batchId;
 
+    @TableField("batch_name")
+    private String batchName;
+
     @TableField("company_id")
     private String companyId;
 

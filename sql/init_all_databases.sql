@@ -52,6 +52,7 @@ INSERT INTO `company` (`company_id`,`name`,`level`,`address`,`contact_phone`,`st
 -- 用途：存储产品生产批次信息，关联企业信息，作为二维码生成的基础
 CREATE TABLE `product_batch` (
                                  `batch_id` VARCHAR(32) NOT NULL PRIMARY KEY COMMENT '生产批次唯一ID',
+                                 `batch_name` VARCHAR(100) NULL COMMENT '批次名称',
                                  `company_id` VARCHAR(32) NOT NULL COMMENT '所属企业ID，关联company表',
                                  `production_date` DATETIME NOT NULL COMMENT '产品实际生产日期',
                                  `ingredients` VARCHAR(200) NOT NULL COMMENT '产品配料明细',
@@ -67,9 +68,9 @@ CREATE TABLE `product_batch` (
 
 -- 1.8 插入批次测试数据
 -- 说明：为每个企业创建一个测试批次，包含不同的配料和数量
-INSERT INTO `product_batch` (`batch_id`,`company_id`,`production_date`,`ingredients`,`production_standard`,`total_quantity`) VALUES
-                                                                                                                                 ('BATCH2026_C001_001','C001',NOW(),'黄豆、水','GB/T 22106-2008',500),
-                                                                                                                                 ('BATCH2026_C002_001','C002',NOW(),'黄豆、辣椒','GB/T 22106-2008',300);
+INSERT INTO `product_batch` (`batch_id`,`batch_name`,`company_id`,`production_date`,`ingredients`,`production_standard`,`total_quantity`) VALUES
+                                                                                                                                 ('BATCH2026_C001_001','2026年第一批香干','C001',NOW(),'黄豆、水','GB/T 22106-2008',500),
+                                                                                                                                 ('BATCH2026_C002_001','2026年第一批麻辣香干','C002',NOW(),'黄豆、辣椒','GB/T 22106-2008',300);
 
 -- 1.9 创建溯源二维码表
 -- 用途：存储溯源二维码信息，包含二维码ID、关联批次、企业信息、签名值等
@@ -198,6 +199,7 @@ USE `yx_alert_engine`;
 
 -- 3.4 删除旧表（如果存在）
 DROP TABLE IF EXISTS `alert_action`;
+DROP TABLE IF EXISTS `alert_read`;
 DROP TABLE IF EXISTS `alert_record`;
 DROP TABLE IF EXISTS `alert_rule`;
 
@@ -234,21 +236,37 @@ CREATE TABLE `alert_record` (
                                 `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '预警生成时间',
                                 `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '预警更新时间',
                                 `status` ENUM('open','closed') DEFAULT 'open' COMMENT '预警处理状态：待处理/已处理',
+                                `batch_id` VARCHAR(32) NULL COMMENT '关联生产批次ID',
+                                `batch_name` VARCHAR(100) NULL COMMENT '批次名称',
                                 `handle_user` VARCHAR(50) NULL COMMENT '处理人账号',
                                 `handle_time` DATETIME NULL COMMENT '预警处理完成时间',
                                 `handle_note` VARCHAR(200) NULL COMMENT '处理备注说明',
                                 KEY `idx_company_level` (`company_id`, `alert_level`) COMMENT '企业+等级索引，加速企业预警查询',
                                 KEY `idx_qs` (`qs_id`) COMMENT '二维码ID索引，加速二维码预警查询',
                                 KEY `idx_status` (`status`) COMMENT '状态索引，加速按状态查询',
+                                KEY `idx_alert_batch` (`batch_id`) COMMENT '批次ID索引，加速批次预警查询',
                                 CONSTRAINT `fk_alert_rule` FOREIGN KEY (`rule_id`) REFERENCES `alert_rule` (`rule_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '预警事件记录表';
 
 -- 3.8 插入预警记录测试数据
 -- 说明：创建一条测试预警记录，模拟高频扫码触发的预警
-INSERT INTO `alert_record` (`qs_id`,`company_id`,`rule_id`,`alert_level`,`reason`,`detail`) VALUES
-    ('QS000001','C001','R001',2,'疑似复用','扫码次数超标');
+INSERT INTO `alert_record` (`qs_id`,`company_id`,`rule_id`,`alert_level`,`reason`,`detail`,`batch_id`,`batch_name`) VALUES
+    ('QS000001','C001','R001',2,'疑似复用','扫码次数超标','BATCH2026_C001_001','2026年第一批香干');
 
--- 3.9 创建预警执行动作表
+-- 3.9 创建预警消息已读记录表
+-- 用途：记录用户已读预警记录，支持已读状态管理
+CREATE TABLE `alert_read` (
+    `read_id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '已读记录自增ID',
+    `alert_id` BIGINT NOT NULL COMMENT '关联预警记录ID',
+    `company_id` VARCHAR(32) NOT NULL COMMENT '企业ID',
+    `read_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '已读时间',
+    KEY `idx_alert_read` (`alert_id`),
+    KEY `idx_company_read` (`company_id`),
+    UNIQUE KEY `uk_alert_company` (`alert_id`, `company_id`),
+    CONSTRAINT `fk_read_alert` FOREIGN KEY (`alert_id`) REFERENCES `alert_record` (`alert_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '预警消息已读记录表';
+
+-- 3.10 创建预警执行动作表
 -- 用途：记录预警触发的执行动作，包含动作类型、执行结果等
 CREATE TABLE `alert_action` (
                                 `action_id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '预警动作执行ID',
@@ -262,7 +280,7 @@ CREATE TABLE `alert_action` (
                                 CONSTRAINT `fk_action_alert` FOREIGN KEY (`alert_id`) REFERENCES `alert_record` (`alert_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '预警执行动作表';
 
--- 3.10 插入预警动作测试数据
+-- 3.11 插入预警动作测试数据
 -- 说明：为测试预警记录创建一条通知动作记录
 INSERT INTO `alert_action` (`alert_id`,`action_type`,`result`) VALUES
     (1,'notify','发送预警成功');

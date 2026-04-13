@@ -239,6 +239,7 @@ public class QsCodeServiceImpl implements QsCodeService {
             item.put("status", qsCode.getStatus());
             item.put("createdAt", qsCode.getCreatedAt());
             item.put("updatedAt", qsCode.getUpdatedAt());
+            item.put("maxAllowedScans", qsCode.getMaxAllowedScans());
             result.add(item);
         }
         

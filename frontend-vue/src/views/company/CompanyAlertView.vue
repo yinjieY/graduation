@@ -4,13 +4,20 @@
       <h1 class="page-title">预警中心</h1>
       
       <div class="alert-filter">
-        <select v-model="filterLevel" @change="loadAlerts">
+        <input 
+          v-model="searchKeyword" 
+          type="text" 
+          placeholder="搜索批次ID或批次名称" 
+          class="search-input"
+          @input="handleSearch"
+        />
+        <select v-model="filterLevel">
           <option value="">全部级别</option>
           <option value="HIGH">高风险</option>
           <option value="MEDIUM">中风险</option>
           <option value="LOW">低风险</option>
         </select>
-        <select v-model="filterStatus" @change="loadAlerts">
+        <select v-model="filterStatus">
           <option value="">全部状态</option>
           <option value="OPEN">未闭环</option>
           <option value="CLOSED">已闭环</option>
@@ -18,23 +25,29 @@
       </div>
       
       <div class="batch-groups">
-        <div v-if="groupedAlerts.length === 0" class="empty-state">
+        <div v-if="filteredGroups.length === 0" class="empty-state">
           <p>暂无预警数据</p>
         </div>
         
-        <div v-for="group in groupedAlerts" :key="group.batchId" class="batch-group">
-          <div class="batch-header">
+        <div v-for="group in filteredGroups" :key="group.batchId" class="batch-group">
+          <div class="batch-header" @click="toggleCollapse(group.batchId)">
             <div class="batch-info">
+              <span class="collapse-icon" :class="{ expanded: expandedGroups.includes(group.batchId) }">
+                ▼
+              </span>
               <span class="batch-icon">📦</span>
-              <span class="batch-name">{{ group.batchName || group.batchId || '未知批次' }}</span>
+              <span class="batch-name">{{ group.batchId || '未知批次' }}</span>
+              <span class="batch-name-label" v-if="group.batchName">{{ group.batchName }}</span>
             </div>
             <div class="batch-stats">
               <span class="stat-item">{{ group.alerts.length }} 条预警</span>
               <span class="stat-item high-count" v-if="group.highCount > 0">高风险 {{ group.highCount }}</span>
+              <span class="stat-item medium-count" v-if="group.mediumCount > 0">中风险 {{ group.mediumCount }}</span>
+              <span class="stat-item low-count" v-if="group.lowCount > 0">低风险 {{ group.lowCount }}</span>
             </div>
           </div>
           
-          <div class="alert-list">
+          <div v-show="expandedGroups.includes(group.batchId)" class="alert-list">
             <div class="alert-item" v-for="alert in group.alerts" :key="alert.id" :class="`alert-${alert.level}`">
               <div class="alert-header">
                 <div class="alert-level" :class="`level-${alert.level}`">
@@ -43,6 +56,7 @@
                 <div class="alert-status" :class="`status-${alert.status}`">
                   {{ alert.status === 'OPEN' ? '未闭环' : '已闭环' }}
                 </div>
+                <div v-if="!alert.isRead" class="unread-badge">未读</div>
               </div>
               <div class="alert-content">
                 <h3 class="alert-title">{{ alert.title }}</h3>
@@ -123,16 +137,36 @@ import { useApi, handleApiError } from '../../composables/useApi';
 import { useNotification } from '../../composables/useNotification';
 
 const api = useApi();
-const { showError } = useNotification();
+const { showError, showSuccess } = useNotification();
 
 const loading = ref(false);
 const showDetailDialog = ref(false);
 const filterLevel = ref('');
 const filterStatus = ref('');
+const searchKeyword = ref('');
 const currentAlert = ref({});
 const alerts = ref([]);
+const expandedGroups = ref([]);
 
-function mapAlert(item) {
+function formatDateTime(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  } catch {
+    return '-';
+  }
+}
+
+function mapAlertItem(item) {
   return {
     id: item.alertId,
     level: String(item.alertLevel || 'LOW').toUpperCase(),
@@ -140,54 +174,111 @@ function mapAlert(item) {
     title: item.reason || '风险预警',
     description: item.detail || '-',
     qsId: item.qsId || '-',
-    createdAt: item.createdAt || '-',
-    processedAt: item.status === 'CLOSED' ? item.createdAt : '',
+    createdAt: formatDateTime(item.createdAt),
+    processedAt: item.status === 'CLOSED' ? formatDateTime(item.createdAt) : '',
     processNote: item.actionResult || '',
     batchId: item.batchId || '',
-    batchName: item.batchName || ''
+    batchName: item.batchName || '',
+    isRead: item.isRead || false
   };
 }
 
 const groupedAlerts = computed(() => {
-  const filtered = alerts.value
-    .filter((item) => !filterLevel.value || item.level === filterLevel.value)
-    .filter((item) => !filterStatus.value || item.status === filterStatus.value);
-
-  const groups = {};
-  filtered.forEach((alert) => {
-    const batchId = alert.batchId || 'unknown';
-    if (!groups[batchId]) {
-      groups[batchId] = {
-        batchId: alert.batchId,
-        batchName: alert.batchName,
-        alerts: [],
-        highCount: 0
+  return alerts.value
+    .map(group => {
+      const mappedAlerts = (group.alerts || []).map(mapAlertItem);
+      const filteredAlerts = mappedAlerts
+        .filter(alert => !filterLevel.value || alert.level === filterLevel.value)
+        .filter(alert => !filterStatus.value || alert.status === filterStatus.value);
+      
+      const highCount = filteredAlerts.filter(a => a.level === 'HIGH').length;
+      const mediumCount = filteredAlerts.filter(a => a.level === 'MEDIUM').length;
+      const lowCount = filteredAlerts.filter(a => a.level === 'LOW').length;
+      
+      return {
+        batchId: group.batchId || 'unknown',
+        batchName: group.batchName || '未知批次',
+        alerts: filteredAlerts,
+        highCount,
+        mediumCount,
+        lowCount
       };
-    }
-    groups[batchId].alerts.push(alert);
-    if (alert.level === 'HIGH') {
-      groups[batchId].highCount++;
-    }
-  });
+    })
+    .filter(group => group.alerts.length > 0)
+    .sort((a, b) => {
+      if (b.highCount !== a.highCount) {
+        return b.highCount - a.highCount;
+      }
+      const aFirst = a.alerts[0]?.createdAt || '';
+      const bFirst = b.alerts[0]?.createdAt || '';
+      return new Date(bFirst) - new Date(aFirst);
+    });
+});
 
-  return Object.values(groups).sort((a, b) => {
-    const aFirst = a.alerts[0]?.createdAt || '';
-    const bFirst = b.alerts[0]?.createdAt || '';
-    return new Date(bFirst) - new Date(aFirst);
+const filteredGroups = computed(() => {
+  if (!searchKeyword.value.trim()) {
+    return groupedAlerts.value;
+  }
+  const keyword = searchKeyword.value.toLowerCase().trim();
+  return groupedAlerts.value.filter(group => {
+    const batchIdMatch = (group.batchId || '').toLowerCase().includes(keyword);
+    const batchNameMatch = (group.batchName || '').toLowerCase().includes(keyword);
+    return batchIdMatch || batchNameMatch;
   });
 });
 
-const handleViewDetail = (alert) => {
+const toggleCollapse = (batchId) => {
+  const index = expandedGroups.value.indexOf(batchId);
+  if (index > -1) {
+    expandedGroups.value.splice(index, 1);
+  } else {
+    expandedGroups.value.push(batchId);
+  }
+};
+
+const markAsRead = async (alertId) => {
+  try {
+    const token = localStorage.getItem('company_token');
+    await api.markAlertAsRead(alertId, token);
+    alerts.value = alerts.value.map(group => ({
+      ...group,
+      alerts: group.alerts.map(alert => 
+        alert.alertId === alertId ? { ...alert, isRead: true } : alert
+      )
+    }));
+    updateUnreadCount();
+  } catch (error) {
+    console.error('标记已读失败:', error);
+  }
+};
+
+const updateUnreadCount = () => {
+  const unreadCount = alerts.value.reduce((total, group) => {
+    return total + group.alerts.filter(alert => !alert.isRead).length;
+  }, 0);
+  localStorage.setItem('alertUnreadCount', unreadCount.toString());
+  window.dispatchEvent(new Event('alertCountUpdated'));
+};
+
+const handleViewDetail = async (alert) => {
   currentAlert.value = alert;
   showDetailDialog.value = true;
+  if (!alert.isRead) {
+    await markAsRead(alert.id);
+  }
+};
+
+const handleSearch = () => {
 };
 
 const loadAlerts = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
-    const rows = await api.getAlertList({}, token);
-    alerts.value = (rows || []).map(mapAlert);
+    const result = await api.getAlertList({}, token);
+    alerts.value = result || [];
+    expandedGroups.value = alerts.value.map(g => g.batchId || 'unknown');
+    updateUnreadCount();
   } catch (error) {
     showError(handleApiError(error));
   } finally {
@@ -222,6 +313,17 @@ onMounted(() => {
   display: flex;
   gap: 16px;
   margin-bottom: 24px;
+  align-items: center;
+}
+
+.alert-filter .search-input {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  min-width: 200px;
+  flex: 1;
+  max-width: 300px;
 }
 
 .alert-filter select {
@@ -259,10 +361,30 @@ onMounted(() => {
   border-bottom: 1px solid #e2e8f0;
 }
 
+.batch-header {
+  cursor: pointer;
+}
+
+.batch-header:hover {
+  background: #f1f5f9;
+}
+
 .batch-info {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.collapse-icon {
+  font-size: 12px;
+  color: #64748b;
+  transition: transform 0.2s ease;
+  width: 16px;
+  text-align: center;
+}
+
+.collapse-icon.expanded {
+  transform: rotate(-90deg);
 }
 
 .batch-icon {
@@ -273,6 +395,15 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 600;
   color: #334155;
+}
+
+.batch-name-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 400;
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .batch-stats {
@@ -287,6 +418,16 @@ onMounted(() => {
 
 .stat-item.high-count {
   color: #ef4444;
+  font-weight: 500;
+}
+
+.stat-item.medium-count {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.stat-item.low-count {
+  color: #3b82f6;
   font-weight: 500;
 }
 
@@ -328,12 +469,22 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  gap: 8px;
 }
 
 .alert-level {
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 12px;
+  font-weight: 500;
+}
+
+.unread-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #ef4444;
+  color: white;
   font-weight: 500;
 }
 

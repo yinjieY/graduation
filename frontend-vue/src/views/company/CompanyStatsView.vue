@@ -166,23 +166,39 @@ const loadStats = async () => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
 
-    // 批次溯源率 = 扫码数 / 发码量
-    const qrBatchCountMap = new Map();
+    // 批次溯源率 = 实际扫码数 / 理论最大扫码量 × 100%
+    // 理论最大扫码量 = 二维码数量 × 单个二维码最大扫码次数
+    const qrBatchInfoMap = new Map();
     (qrList || []).forEach((item) => {
       const batchId = item.batchId;
       if (batchId) {
-        qrBatchCountMap.set(batchId, (qrBatchCountMap.get(batchId) || 0) + 1);
+        const current = qrBatchInfoMap.get(batchId) || { count: 0, maxScans: 0 };
+        qrBatchInfoMap.set(batchId, {
+          count: current.count + 1,
+          maxScans: current.maxScans + (item.maxAllowedScans || 5)
+        });
       }
     });
-    batchStats.value = (batchList || []).map((batch) => {
-      const issued = qrBatchCountMap.get(batch.batchId) || 0;
-      const scans = batchScanMap.get(batch.batchId) || 0;
-      const rate = issued > 0 ? Math.min(100, Math.round((scans / issued) * 100)) : 0;
-      return {
-        batchName: batch.productionStandard || batch.batchId,
-        traceRate: rate
-      };
+    
+    const batchMap = new Map();
+    (batchList || []).forEach((batch) => {
+      if (!batchMap.has(batch.batchId)) {
+        const qrInfo = qrBatchInfoMap.get(batch.batchId);
+        const issued = qrInfo ? qrInfo.count : 0;
+        const maxPossibleScans = qrInfo ? qrInfo.maxScans : 0;
+        const scans = batchScanMap.get(batch.batchId) || 0;
+        const rate = maxPossibleScans > 0 ? Math.min(100, Math.round((scans / maxPossibleScans) * 100)) : 0;
+        batchMap.set(batch.batchId, {
+          batchName: batch.batchName || batch.productionStandard || batch.batchId,
+          traceRate: rate,
+          issued,
+          scans,
+          maxPossibleScans
+        });
+      }
     });
+    
+    batchStats.value = Array.from(batchMap.values()).sort((a, b) => b.traceRate - a.traceRate);
   } catch (error) {
     showError(handleApiError(error));
   } finally {

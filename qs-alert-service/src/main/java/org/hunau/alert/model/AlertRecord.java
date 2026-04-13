@@ -10,6 +10,8 @@ public class AlertRecord {
     private String eventId;
     private String qsId;
     private String companyId;
+    private String batchId;
+    private String batchName;
     private RiskLevel riskLevel;
     private double riskScore;
     private String detail;

@@ -198,6 +198,7 @@ const handleSaveBatch = async () => {
     const token = localStorage.getItem('company_token');
     const payload = {
       batchId: formData.batchId || undefined,
+      batchName: formData.batchName,
       productionDate: formData.productionDate ? `${formData.productionDate}T00:00:00` : '',
       ingredients: formData.description || formData.batchName,
       productionStandard: formData.batchName,

@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup>import { ref, computed, onMounted } from 'vue';
+<script setup>import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { clearToken } from '../api/session';
 import { useSidebarState } from '../composables/useSidebar';
@@ -88,12 +88,26 @@ async function loadUnreadCount() {
  console.error('获取未读预警数量失败:', handleApiError(error));
  }
 }
+
+function handleAlertCountUpdated() {
+ const count = localStorage.getItem('alertUnreadCount');
+ if (count !== null) {
+ unreadCount.value = parseInt(count) || 0;
+ }
+}
+
 function logout() {
  clearToken(props.role);
  router.push(props.role === 'admin' ? '/admin/login' : '/company/login');
 }
+
 onMounted(() => {
  loadUnreadCount();
+ window.addEventListener('alertCountUpdated', handleAlertCountUpdated);
+});
+
+onUnmounted(() => {
+ window.removeEventListener('alertCountUpdated', handleAlertCountUpdated);
 });
 </script>
 
