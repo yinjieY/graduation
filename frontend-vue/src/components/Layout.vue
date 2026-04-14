@@ -1,6 +1,6 @@
 <template>
   <div class="layout">
-    <Sidebar :role="role" />
+    <Sidebar :role="role" :unreadCount="unreadCount" />
     <div class="main-content" :class="{ 'sidebar-collapsed': isCollapsed }">
       <div class="content-wrapper">
         <slot></slot>
@@ -18,6 +18,10 @@ const props = defineProps({
     type: String,
     required: true,
     validator: (value) => ['admin', 'company'].includes(value)
+  },
+  unreadCount: {
+    type: Number,
+    default: 0
   }
 });
 

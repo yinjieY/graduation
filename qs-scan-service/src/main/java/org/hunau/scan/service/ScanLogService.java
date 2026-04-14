@@ -78,11 +78,21 @@ public class ScanLogService {
         log.setNewDevice(profile.getScanCount() == 1);
         log.setRiskDevice(profile.isRisk());
 
-        //日志存库
         persistScanLog(log, req);
-        // 触发风险评估（调用AI模型）
-        pushAlertEvaluate(log);
-        return R.ok(log);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("scanLog", log);
+        
+        try {
+            Map<String, Object> evaluationResult = pushAlertEvaluate(log);
+            if (evaluationResult != null) {
+                result.put("riskEvaluation", evaluationResult);
+            }
+        } catch (Exception e) {
+            // Alert service is eventually consistent; scan flow should not fail.
+        }
+        
+        return R.ok(result);
     }
 
     public R<?> listByQsId(String qsId) {
@@ -126,7 +136,7 @@ public class ScanLogService {
         return profile;
     }
 
-    private void pushAlertEvaluate(ScanLog log) {
+    private Map<String, Object> pushAlertEvaluate(ScanLog log) {
         Map<String, Object> reuseFeature = loadReuseFeature(log.getQsId());
         int scanCount1h = countRecentScans(log.getQsId(), 60);
         int deviceCount1d = countRecentDevice(log.getQsId(), 1440);
@@ -147,7 +157,6 @@ public class ScanLogService {
         body.put("deviceCount1d", deviceCount1d);
         body.put("ipCount1h", ipCount1h);
 
-        // Backward-compatible fields retained for existing consumers.
         body.put("scanCount", scanCount);
         body.put("deviceCount", deviceCount);
         body.put("ipCount", ipCount);
@@ -158,11 +167,16 @@ public class ScanLogService {
         body.put("distanceKm", log.getDistanceKm());
         body.put("city", null);
         body.put("province", null);
+        
         try {
-            alertFeignClient.evaluate(body);
+            R<?> response = alertFeignClient.evaluate(body);
+            if (response != null && response.getCode() == 200 && response.getData() != null) {
+                return (Map<String, Object>) response.getData();
+            }
         } catch (Exception ignored) {
             // Alert service is eventually consistent; scan flow should not fail.
         }
+        return null;
     }
 
     private double calcDistanceKm(ScanRequest req) {

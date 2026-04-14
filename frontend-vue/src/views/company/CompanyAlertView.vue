@@ -22,6 +22,14 @@
           <option value="OPEN">未闭环</option>
           <option value="CLOSED">已闭环</option>
         </select>
+        <button 
+          class="btn-refresh" 
+          :disabled="loading" 
+          @click="loadAlerts"
+        >
+          <span v-if="loading" class="loading-spinner"></span>
+          <span v-else>🔄 刷新</span>
+        </button>
       </div>
       
       <div class="batch-groups">
@@ -275,7 +283,9 @@ const loadAlerts = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('company_token');
-    const result = await api.getAlertList({}, token);
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    const result = await api.getAlertList({ role: 'COMPANY', companyId }, token);
     alerts.value = result || [];
     expandedGroups.value = alerts.value.map(g => g.batchId || 'unknown');
     updateUnreadCount();
@@ -332,6 +342,45 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 14px;
   min-width: 150px;
+}
+
+.btn-refresh {
+  padding: 8px 16px;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #ffffff;
+  color: #3b82f6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .batch-groups {

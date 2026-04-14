@@ -104,7 +104,10 @@ export function markAllNotificationsAsRead(token) {
 // 预警管理
 export function getAlertList(params, token) {
   const query = new URLSearchParams(params).toString();
-  return apiFetch(`/alert/list?${query}`, { headers: authHeaders(token) });
+  return apiFetch(`/alert/list?${query}`, { 
+    headers: authHeaders(token),
+    noCache: true
+  });
 }
 
 export function getUnreadAlertCount(token) {
@@ -161,6 +164,19 @@ export function reloadRules(token) {
 }
 
 export function markAlertAsRead(alertId, token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/alert/${encodeURIComponent(alertId)}/read?companyId=${encodeURIComponent(companyId)}`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
   return apiFetch(`/alert/${encodeURIComponent(alertId)}/read`, {
     method: 'POST',
     headers: authHeaders(token),

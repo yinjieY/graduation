@@ -219,6 +219,7 @@ CREATE TABLE `alert_rule` (
 -- 3.6 插入预警规则测试数据
 -- 说明：创建三条测试预警规则，分别为高频扫码、多设备扫码和多IP扫码
 INSERT INTO `alert_rule` (`rule_id`,`rule_name`,`rule_content`,`threshold`,`alert_level`,`status`) VALUES
+    ('R000','AI模型触发','AI模型单独检测到风险（无规则命中）','AI_ONLY',1,1),
     ('R001','高频扫码','IF scan_count_1h >= threshold THEN alert','1h>=5',2,1),
     ('R002','多设备扫码','IF device_count_1d >= threshold THEN alert','1d>=10',2,1),
     ('R003','多IP扫码','IF ip_count_1h >= threshold THEN alert','1h>=20',1,1);

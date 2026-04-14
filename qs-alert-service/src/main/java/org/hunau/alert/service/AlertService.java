@@ -92,7 +92,7 @@ public class AlertService {
                 + ", province=" + req.getProvince()
                 + ", city=" + req.getCity());
 
-        String ruleId = ruleResult.hitRuleIds().isEmpty() ? "R001" : ruleResult.hitRuleIds().get(0);
+        String ruleId = ruleResult.hitRuleIds().isEmpty() ? "R000" : ruleResult.hitRuleIds().get(0);
         
         persistAlertRecord(record, ruleResult, level);
         
@@ -126,8 +126,14 @@ public class AlertService {
                 saveEventProof(record);
             }
         }
-        if (level == RiskLevel.HIGH) {
+        
+        if (level.shouldAutoFreeze()) {
+            log.info("Critical risk detected for qsId={}, score={}, triggering auto-freeze", 
+                    record.getQsId(), record.getRiskScore());
             freezeQsCode(record.getQsId(), record.getCompanyId());
+        } else if (level == RiskLevel.HIGH) {
+            log.info("High risk detected for qsId={}, score={}, will notify but not freeze (requires CRITICAL level)", 
+                    record.getQsId(), record.getRiskScore());
         }
 
         return R.ok(record);
@@ -262,6 +268,7 @@ public class AlertService {
                 group.put("batchId", "_unassigned".equals(batchId) ? null : batchId);
                 group.put("batchName", batchName);
                 group.put("alerts", new ArrayList<Map<String, Object>>());
+                group.put("criticalRiskCount", 0);
                 group.put("highRiskCount", 0);
                 group.put("mediumRiskCount", 0);
                 batchGroups.put(batchId, group);
@@ -273,7 +280,9 @@ public class AlertService {
             alertList.add(alert);
             
             String alertLevel = (String) alert.get("alertLevel");
-            if ("HIGH".equals(alertLevel)) {
+            if ("CRITICAL".equals(alertLevel)) {
+                group.put("criticalRiskCount", (Integer) group.get("criticalRiskCount") + 1);
+            } else if ("HIGH".equals(alertLevel)) {
                 group.put("highRiskCount", (Integer) group.get("highRiskCount") + 1);
             } else if ("MEDIUM".equals(alertLevel)) {
                 group.put("mediumRiskCount", (Integer) group.get("mediumRiskCount") + 1);
@@ -282,6 +291,10 @@ public class AlertService {
         
         List<Map<String, Object>> result = new ArrayList<>(batchGroups.values());
         result.sort((a, b) -> {
+            int criticalA = (Integer) a.get("criticalRiskCount");
+            int criticalB = (Integer) b.get("criticalRiskCount");
+            if (criticalB != criticalA) return criticalB - criticalA;
+            
             int highA = (Integer) a.get("highRiskCount");
             int highB = (Integer) b.get("highRiskCount");
             if (highB != highA) return highB - highA;
@@ -406,13 +419,7 @@ public class AlertService {
     }
 
     private RiskLevel decideLevel(double score) {
-        if (score >= 0.75) {
-            return RiskLevel.HIGH;
-        }
-        if (score >= 0.45) {
-            return RiskLevel.MEDIUM;
-        }
-        return RiskLevel.LOW;
+        return RiskLevel.fromScore(score * 100);
     }
 
     private void notifyRegulator(AlertRecord record) {
@@ -501,7 +508,7 @@ public class AlertService {
         if (level == RiskLevel.LOW) {
             return;
         }
-        String ruleId = ruleResult.hitRuleIds().isEmpty() ? "R001" : ruleResult.hitRuleIds().get(0);
+        String ruleId = ruleResult.hitRuleIds().isEmpty() ? "R000" : ruleResult.hitRuleIds().get(0);
         String reason = buildAlertReason(ruleResult, record.getRiskScore());
         String status = "open";
         int alertLevel = toAlertLevel(level);
@@ -558,14 +565,10 @@ public class AlertService {
             return "规则引擎判定: " + ruleResult.hitReasons().get(0);
         }
         
-        if (riskScore >= 0.75) {
-            return "AI模型判定: 高风险评分(" + String.format("%.2f", riskScore) + ")";
-        }
-        if (riskScore >= 0.45) {
-            return "AI模型判定: 中等风险评分(" + String.format("%.2f", riskScore) + ")";
-        }
+        RiskLevel level = RiskLevel.fromScore(riskScore * 100);
+        String levelDesc = level.getDescription();
         
-        return "风险评分触发(" + String.format("%.2f", riskScore) + ")";
+        return "AI模型判定: " + levelDesc + "评分(" + String.format("%.2f", riskScore) + ")";
     }
 
     private void persistNotifyAction(AlertRecord record, String result) {
@@ -617,6 +620,9 @@ public class AlertService {
     }
 
     private int toAlertLevel(RiskLevel level) {
+        if (level == RiskLevel.CRITICAL) {
+            return 0;
+        }
         if (level == RiskLevel.HIGH) {
             return 1;
         }
@@ -627,6 +633,9 @@ public class AlertService {
     }
 
     private RiskLevel toRiskLevel(int alertLevel) {
+        if (alertLevel == 0) {
+            return RiskLevel.CRITICAL;
+        }
         if (alertLevel == 1) {
             return RiskLevel.HIGH;
         }
@@ -637,6 +646,9 @@ public class AlertService {
     }
 
     private int toAlertLevelByText(String riskLevel) {
+        if ("CRITICAL".equals(riskLevel)) {
+            return 0;
+        }
         if ("HIGH".equals(riskLevel)) {
             return 1;
         }

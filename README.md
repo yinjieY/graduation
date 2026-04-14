@@ -194,68 +194,68 @@
 
 ### 1) qs-auth-service（9091）
 
-| 方法 | 路径 | 主要参数 | 作用 | 权限 |
-| --- | --- | --- | --- | --- |
-| POST | `/auth/login` | `account`(可选), `username`(可选), `password`(必填, form/query) | 用户登录并签发 JWT（含 role/companyId） | 公开 |
-| POST | `/auth/register/user` | Body:`username`,`phone`,`password`,`role(COMPANY/CONSUMER)`,`companyName?`,`remark?` | 普通用户/企业注册 | 公开 |
-| POST | `/register/user` | 同上（兼容路径） | 同上 | 公开 |
-| POST | `/auth/register/admin` | Body:`username`,`phone`,`password`,`companyName?`,`remark?` | 临时管理员注册（测试用） | 公开 |
-| POST | `/register/admin` | 同上（兼容路径） | 同上 | 公开 |
-| GET | `/auth/company/status/{companyId}` | Path:`companyId` | 查询企业认证状态 | 公开 |
-| POST | `/auth/company/apply` | Body:`companyName`,`remark?`（`companyId`仅管理员可显式传） | 企业提交认证申请（重复提交=更新同一申请并重置待审核） | `COMPANY/ADMIN` |
-| GET | `/auth/company/pending` | 无 | 查询待审核企业列表 | `ADMIN` |
-| PUT | `/auth/company/review/{companyId}` | Path:`companyId` + Body:`approved`,`companyName?`,`remark?` | 审核企业认证（通过后自动触发企业主档初始化） | `ADMIN` |
-| PUT | `/auth/company/review/{companyId}?approved=true/false` | Path:`companyId` + Query:`approved` | 审核兼容接口 | `ADMIN` |
+| 方法 | 路径                                                   | 主要参数                                                     | 作用                                                  | 权限            |
+| ---- | ------------------------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------- | --------------- |
+| POST | `/auth/login`                                          | `account`(可选), `username`(可选), `password`(必填, form/query) | 用户登录并签发 JWT（含 role/companyId）               | 公开            |
+| POST | `/auth/register/user`                                  | Body:`username`,`phone`,`password`,`role(COMPANY/CONSUMER)`,`companyName?`,`remark?` | 普通用户/企业注册                                     | 公开            |
+| POST | `/register/user`                                       | 同上（兼容路径）                                             | 同上                                                  | 公开            |
+| POST | `/auth/register/admin`                                 | Body:`username`,`phone`,`password`,`companyName?`,`remark?`  | 临时管理员注册（测试用）                              | 公开            |
+| POST | `/register/admin`                                      | 同上（兼容路径）                                             | 同上                                                  | 公开            |
+| GET  | `/auth/company/status/{companyId}`                     | Path:`companyId`                                             | 查询企业认证状态                                      | 公开            |
+| POST | `/auth/company/apply`                                  | Body:`companyName`,`remark?`（`companyId`仅管理员可显式传）  | 企业提交认证申请（重复提交=更新同一申请并重置待审核） | `COMPANY/ADMIN` |
+| GET  | `/auth/company/pending`                                | 无                                                           | 查询待审核企业列表                                    | `ADMIN`         |
+| PUT  | `/auth/company/review/{companyId}`                     | Path:`companyId` + Body:`approved`,`companyName?`,`remark?`  | 审核企业认证（通过后自动触发企业主档初始化）          | `ADMIN`         |
+| PUT  | `/auth/company/review/{companyId}?approved=true/false` | Path:`companyId` + Query:`approved`                          | 审核兼容接口                                          | `ADMIN`         |
 
 ### 2) qs-trace-service（9092）
 
-| 方法 | 路径 | 主要参数 | 作用 | 权限 |
-| --- | --- | --- | --- | --- |
-| POST | `/trace/company/init` | Body:`companyId`,`name`,`level?`,`address?`,`contactPhone?`,`status?` | 内部幂等初始化企业主档（审核通过后自动调用） | 内部调用 |
-| POST | `/trace/company/create` | Body:`companyId?`,`name`,`level?`,`address`,`contactPhone`,`status?`（企业可不传 companyId，后端取 token；管理员必须传） | 企业信息建档（company） | `ADMIN/COMPANY` |
-| GET | `/trace/company/list` | 无 | 企业列表查询 | 登录可访问 |
-| PUT | `/trace/company/update` | Body:`companyId?`,`name`,`address`,`contactPhone`,...（企业可不传 companyId，后端取 token；管理员必须传） | 修改企业基础信息（企业不可修改 `level/status`） | `ADMIN/COMPANY` |
-| PUT | `/trace/company/governance` | Body:`companyId`,`level?`,`status?` | 修改企业治理字段（等级/启用状态） | `ADMIN` |
-| DELETE | `/trace/company/delete/{companyId}` | Path:`companyId` | 删除企业信息 | `ADMIN` |
-| POST | `/trace/batch/create` | Body:`companyId?`,`productionDate`,`ingredients`,`productionStandard`,`totalQuantity`,`batchId?`（企业可不传 companyId，后端取 token；管理员必须传） | 产品批次建档（product_batch） | `ADMIN/COMPANY` |
-| GET | `/trace/batch/list` | Query:`companyId?` | 批次列表查询 | 登录可访问 |
-| POST | `/trace/qs/generate` | Body:`batchId`,`companyId?`,`status?`,`maxAllowedScans?`（企业可不传 companyId，后端取 token；管理员必须传） | 二维码生成与绑定（qs_code） | `ADMIN/COMPANY` |
-| GET | `/trace/qs/image/{fileName}` | Path:`fileName`（如 `{qsId}.png`） | 获取服务端生成的二维码图片 | 公开 |
-| GET | `/trace/scan/index.html` | Query:`qsId`,`batchId`,`companyId`,`payload`,`signature` | 扫码入口页：展示溯源信息并自动上报扫码行为 | 公开 |
-| GET | `/trace/query/{qsId}` | Path:`qsId` | 公开查询二维码溯源详情（扫码页调用） | 公开 |
-| GET | `/trace/qs/get/{qsId}` | Path:`qsId` | 查询单个二维码溯源详情 | 登录可访问 |
-| GET | `/trace/qs/list` | 无 | 二维码列表 | 登录可访问 |
-| PUT | `/trace/qs/{qsId}/status` | Path:`qsId` + Body:`status` | 管理员手动变更二维码状态 | `ADMIN` |
-| PUT | `/trace/qs/{qsId}/status/internal` | Path:`qsId` + Body:`status` | 系统自动处置二维码状态（预警联动） | `ADMIN/SERVICE` |
+| 方法   | 路径                                | 主要参数                                                     | 作用                                            | 权限            |
+| ------ | ----------------------------------- | ------------------------------------------------------------ | ----------------------------------------------- | --------------- |
+| POST   | `/trace/company/init`               | Body:`companyId`,`name`,`level?`,`address?`,`contactPhone?`,`status?` | 内部幂等初始化企业主档（审核通过后自动调用）    | 内部调用        |
+| POST   | `/trace/company/create`             | Body:`companyId?`,`name`,`level?`,`address`,`contactPhone`,`status?`（企业可不传 companyId，后端取 token；管理员必须传） | 企业信息建档（company）                         | `ADMIN/COMPANY` |
+| GET    | `/trace/company/list`               | 无                                                           | 企业列表查询                                    | 登录可访问      |
+| PUT    | `/trace/company/update`             | Body:`companyId?`,`name`,`address`,`contactPhone`,...（企业可不传 companyId，后端取 token；管理员必须传） | 修改企业基础信息（企业不可修改 `level/status`） | `ADMIN/COMPANY` |
+| PUT    | `/trace/company/governance`         | Body:`companyId`,`level?`,`status?`                          | 修改企业治理字段（等级/启用状态）               | `ADMIN`         |
+| DELETE | `/trace/company/delete/{companyId}` | Path:`companyId`                                             | 删除企业信息                                    | `ADMIN`         |
+| POST   | `/trace/batch/create`               | Body:`companyId?`,`productionDate`,`ingredients`,`productionStandard`,`totalQuantity`,`batchId?`（企业可不传 companyId，后端取 token；管理员必须传） | 产品批次建档（product_batch）                   | `ADMIN/COMPANY` |
+| GET    | `/trace/batch/list`                 | Query:`companyId?`                                           | 批次列表查询                                    | 登录可访问      |
+| POST   | `/trace/qs/generate`                | Body:`batchId`,`companyId?`,`status?`,`maxAllowedScans?`（企业可不传 companyId，后端取 token；管理员必须传） | 二维码生成与绑定（qs_code）                     | `ADMIN/COMPANY` |
+| GET    | `/trace/qs/image/{fileName}`        | Path:`fileName`（如 `{qsId}.png`）                           | 获取服务端生成的二维码图片                      | 公开            |
+| GET    | `/trace/scan/index.html`            | Query:`qsId`,`batchId`,`companyId`,`payload`,`signature`     | 扫码入口页：展示溯源信息并自动上报扫码行为      | 公开            |
+| GET    | `/trace/query/{qsId}`               | Path:`qsId`                                                  | 公开查询二维码溯源详情（扫码页调用）            | 公开            |
+| GET    | `/trace/qs/get/{qsId}`              | Path:`qsId`                                                  | 查询单个二维码溯源详情                          | 登录可访问      |
+| GET    | `/trace/qs/list`                    | 无                                                           | 二维码列表                                      | 登录可访问      |
+| PUT    | `/trace/qs/{qsId}/status`           | Path:`qsId` + Body:`status`                                  | 管理员手动变更二维码状态                        | `ADMIN`         |
+| PUT    | `/trace/qs/{qsId}/status/internal`  | Path:`qsId` + Body:`status`                                  | 系统自动处置二维码状态（预警联动）              | `ADMIN/SERVICE` |
 
 ### 3) qs-scan-service（9093）
 
-| 方法 | 路径 | 主要参数 | 作用 | 权限 |
-| --- | --- | --- | --- | --- |
-| POST | `/scan/report` | Body:`qsId`,`batchId?`,`companyId?`,`signature`,`signaturePayload`,`ip?`,`deviceFingerprint`,`browser?`,`latitude?`,`longitude?`,`expectedLatitude?`,`expectedLongitude?`,`locationSource?` | 上报扫码日志并触发验签、风控评估 | 公开 |
-| GET | `/scan/logs/{qsId}` | Path:`qsId` | 按二维码查询扫码日志 | 公开 |
+| 方法 | 路径                | 主要参数                                                     | 作用                             | 权限 |
+| ---- | ------------------- | ------------------------------------------------------------ | -------------------------------- | ---- |
+| POST | `/scan/report`      | Body:`qsId`,`batchId?`,`companyId?`,`signature`,`signaturePayload`,`ip?`,`deviceFingerprint`,`browser?`,`latitude?`,`longitude?`,`expectedLatitude?`,`expectedLongitude?`,`locationSource?` | 上报扫码日志并触发验签、风控评估 | 公开 |
+| GET  | `/scan/logs/{qsId}` | Path:`qsId`                                                  | 按二维码查询扫码日志             | 公开 |
 
 ### 4) qs-alert-service（9094）
 
-| 方法 | 路径 | 主要参数 | 作用 | 权限 |
-| --- | --- | --- | --- | --- |
-| POST | `/alert/evaluate` | Body:`qsId`,`companyId`,`scanCount1h`,`deviceCount1d`,`ipCount1h`,`timeVariance`,`locationVariance`,`newDevice?`,`riskDevice?`,`distanceKm?`,`city?`,`province?`（兼容旧字段`scanCount/deviceCount/ipCount`） | 规则引擎 + AI 双通道风险评估并生成预警/联动动作 | 登录可访问 |
-| GET | `/alert/list` 或 `/alert/messages` | 无 | 系统消息列表（ADMIN看全量，COMPANY仅看本企业） | 登录可访问 |
-| POST | `/alert/messages/feedback` | Body:`feedbackId`,`qsId`,`companyId`,`feedbackType`,`complaintRate`,`riskLevel(HIGH/MEDIUM)` | 消费者反馈投诉率触发系统消息（即使未命中AI/规则也可通知） | 内部调用 |
-| GET | `/alert/rules` | 无 | 查询规则配置（来自`alert_rule`） | 登录可访问 |
-| PUT | `/alert/rules/{ruleId}/threshold` | Path:`ruleId` + Body:`threshold`（如`1h>=8`） | 动态修改阈值并立即热更新Drools | 登录可访问 |
-| PUT | `/alert/rules/{ruleId}/status` | Path:`ruleId` + Body:`status`（0禁用/1启用） | 启停规则并立即热更新Drools | 登录可访问 |
-| POST | `/alert/rules/reload` | 无 | 手动触发规则重载 | 登录可访问 |
+| 方法 | 路径                               | 主要参数                                                     | 作用                                                      | 权限       |
+| ---- | ---------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------- | ---------- |
+| POST | `/alert/evaluate`                  | Body:`qsId`,`companyId`,`scanCount1h`,`deviceCount1d`,`ipCount1h`,`timeVariance`,`locationVariance`,`newDevice?`,`riskDevice?`,`distanceKm?`,`city?`,`province?`（兼容旧字段`scanCount/deviceCount/ipCount`） | 规则引擎 + AI 双通道风险评估并生成预警/联动动作           | 登录可访问 |
+| GET  | `/alert/list` 或 `/alert/messages` | 无                                                           | 系统消息列表（ADMIN看全量，COMPANY仅看本企业）            | 登录可访问 |
+| POST | `/alert/messages/feedback`         | Body:`feedbackId`,`qsId`,`companyId`,`feedbackType`,`complaintRate`,`riskLevel(HIGH/MEDIUM)` | 消费者反馈投诉率触发系统消息（即使未命中AI/规则也可通知） | 内部调用   |
+| GET  | `/alert/rules`                     | 无                                                           | 查询规则配置（来自`alert_rule`）                          | 登录可访问 |
+| PUT  | `/alert/rules/{ruleId}/threshold`  | Path:`ruleId` + Body:`threshold`（如`1h>=8`）                | 动态修改阈值并立即热更新Drools                            | 登录可访问 |
+| PUT  | `/alert/rules/{ruleId}/status`     | Path:`ruleId` + Body:`status`（0禁用/1启用）                 | 启停规则并立即热更新Drools                                | 登录可访问 |
+| POST | `/alert/rules/reload`              | 无                                                           | 手动触发规则重载                                          | 登录可访问 |
 
 ### 5) qs-block-service（9095）
 
-| 方法 | 路径 | 主要参数 | 作用 | 权限 |
-| --- | --- | --- | --- | --- |
-| POST | `/block/proof/qr` | Body:`qsId`, 其他业务字段可附带 | 保存二维码创建存证 | 登录可访问 |
-| POST | `/block/proof/event` | Body:`eventId`, 其他业务字段可附带 | 保存预警事件存证 | 登录可访问 |
-| POST | `/block/proof/freeze` | Body:`qsId`, 其他业务字段可附带 | 保存冻结动作存证 | 登录可访问 |
-| GET | `/block/proof/verify` | Query:`businessKey`,`hash` | 校验指定业务哈希是否存在 | 登录可访问 |
-| GET | `/block/proof/list/{businessKey}` | Path:`businessKey` | 查询某业务键的存证历史 | 登录可访问 |
+| 方法 | 路径                              | 主要参数                           | 作用                     | 权限       |
+| ---- | --------------------------------- | ---------------------------------- | ------------------------ | ---------- |
+| POST | `/block/proof/qr`                 | Body:`qsId`, 其他业务字段可附带    | 保存二维码创建存证       | 登录可访问 |
+| POST | `/block/proof/event`              | Body:`eventId`, 其他业务字段可附带 | 保存预警事件存证         | 登录可访问 |
+| POST | `/block/proof/freeze`             | Body:`qsId`, 其他业务字段可附带    | 保存冻结动作存证         | 登录可访问 |
+| GET  | `/block/proof/verify`             | Query:`businessKey`,`hash`         | 校验指定业务哈希是否存在 | 登录可访问 |
+| GET  | `/block/proof/list/{businessKey}` | Path:`businessKey`                 | 查询某业务键的存证历史   | 登录可访问 |
 
 ### 6) 网关访问说明（qs-gateway-service，9090）
 
@@ -582,8 +582,8 @@ public class LoginController {
 
 
 
-| 项目模块                        | 对应代码模块       | 核心职责                     |
-|-----------------------------| ------------------ | ---------------------------- |
+| 项目模块                    | 对应代码模块       | 核心职责                     |
+| --------------------------- | ------------------ | ---------------------------- |
 | **yx-auth-service:9091**    | qs-auth-service    | 登录认证、企业审核、用户权限 |
 | **yx-trace-service:9092**   | qs-trace-service   | 企业、批次、二维码主数据管理 |
 | **yx-scan-service:9093**    | qs-scan-service    | 扫码日志、设备画像采集       |
@@ -680,3 +680,8 @@ SHOW COLUMNS FROM scan_log;
 
 
 针对项目中二维码扫描通知功能进行优化，实现以下具体需求：当企业的某个二维码触发警告规则时，系统仅发送一次通知；若该警告规则已触发过，则仅更新原有通知的内容和时间戳，避免重复发送通知。请基于项目现有的README文档、毕业设计计划书及源代码进行功能修改，确保： 1. 实现警告规则触发状态的持久化存储，记录每个企业二维码的警告触发状态及相关时间戳 2. 在二维码扫描流程中增加警告规则触发检查机制，判断该企业二维码是否已触发过相同警告 3. 若未触发过，执行通知发送流程；若已触发过，仅更新通知内容和时间信息，不执行新通知发送 4. 确保修改后系统性能不受明显影响，通知更新操作响应时间控制在合理范围内 5. 添加必要的日志记录，便于跟踪警告触发状态变化和通知更新情况 6. 对修改部分编写单元测试，验证重复触发场景下的通知行为符合预期 请基于项目现有架构和代码风格进行实现，确保与现有系统功能兼容。
+
+
+
+
+

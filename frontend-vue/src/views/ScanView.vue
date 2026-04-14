@@ -373,9 +373,38 @@ function updateGeo(lat, lng, reason) {
 async function doReport() {
   const res = await reportScan(scanForm);
   debugData.value.report = res;
+  
   if (res?.code === 200) {
     reportStatus.value = '扫码行为上报成功';
-    if (officialStatus.value.includes('官方二维码')) {
+    
+    const riskEvaluation = res.data?.riskEvaluation;
+    if (riskEvaluation) {
+      const riskLevelFromBackend = riskEvaluation.riskLevel;
+      const riskScore = riskEvaluation.riskScore;
+      const qsStatus = riskEvaluation.qsStatus;
+      
+      if (riskLevelFromBackend === 'CRITICAL') {
+        heroStamp.value = '高风险';
+        officialStatus.value = '二维码已冻结（极高风险）';
+        setRisk('high', `结论：系统检测到极高风险（评分：${(riskScore * 100).toFixed(1)}分），二维码已被冻结，请联系监管部门核实。`);
+      } else if (riskLevelFromBackend === 'HIGH') {
+        heroStamp.value = '待确认';
+        officialStatus.value = '官方二维码（高风险预警）';
+        setRisk('mid', `结论：系统检测到高风险（评分：${(riskScore * 100).toFixed(1)}分），建议谨慎购买，已通知监管部门复核。`);
+      } else if (riskLevelFromBackend === 'MEDIUM') {
+        heroStamp.value = '待确认';
+        officialStatus.value = '官方二维码（中等风险）';
+        setRisk('mid', `结论：系统检测到中等风险（评分：${(riskScore * 100).toFixed(1)}分），建议留意产品状态。`);
+      } else {
+        heroStamp.value = '官方';
+        officialStatus.value = '官方二维码（验签通过，状态正常）';
+        setRisk('low', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分），可放心查看溯源信息。`);
+      }
+      
+      if (qsStatus) {
+        traceInfo.qsStatus = mapStatus(qsStatus);
+      }
+    } else if (officialStatus.value.includes('官方二维码')) {
       officialStatus.value = '官方二维码（验签通过，状态正常）';
       heroStamp.value = '官方';
       setRisk('low', '结论：该二维码为官方有效码，可放心查看溯源信息。');

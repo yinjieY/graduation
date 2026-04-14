@@ -71,7 +71,8 @@ public class AdminActionNotificationService {
                                                        String content, String sourceModule, String sourceId) {
         jdbcTemplate.update(
                 "INSERT INTO sys_notification(company_id, title, content, type, source_module, source_id, status, created_at) " +
-                "VALUES (?, ?, ?, 'OPERATION', ?, ?, 'UNREAD', NOW())",
+                "VALUES (?, ?, ?, 'OPERATION', ?, ?, 'UNREAD', NOW()) " +
+                "ON DUPLICATE KEY UPDATE content = VALUES(content), status = 'UNREAD', created_at = NOW()",
                 companyId,
                 title,
                 content,

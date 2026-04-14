@@ -15,10 +15,20 @@ spring:
         server-addr: localhost:8848
         file-extension: yml
   datasource:
-    url: jdbc:mysql://localhost:3306/yx_alert_engine
+    url: jdbc:mysql://localhost:3306/yx_alert_engine?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
+  http:
+    encoding:
+      enabled: true
+      charset: UTF-8
+      force: true
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 app:
   ai:

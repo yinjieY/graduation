@@ -16,7 +16,7 @@
           <router-link :to="item.path" :title="isCollapsed ? item.label : ''">
             <span class="nav-icon">{{ item.icon }}</span>
             <span v-if="!isCollapsed" class="nav-text">{{ item.label }}</span>
-            <span v-if="item.path === '/company/alert' && unreadCount > 0" class="badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            <span v-if="shouldShowBadge(item.path)" class="badge">{{ displayUnreadCount > 99 ? '99+' : displayUnreadCount }}</span>
           </router-link>
         </li>
       </ul>
@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup>import { ref, computed, onMounted, onUnmounted } from 'vue';
+<script setup>import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { clearToken } from '../api/session';
 import { useSidebarState } from '../composables/useSidebar';
@@ -41,13 +41,17 @@ const props = defineProps({
  type: String,
  required: true,
  validator: (value) => ['admin', 'company'].includes(value)
+ },
+ unreadCount: {
+ type: Number,
+ default: 0
  }
 });
 const router = useRouter();
 const route = useRoute();
 const { isCollapsed, toggleCollapse } = useSidebarState();
 const api = useApi();
-const unreadCount = ref(0);
+const internalUnreadCount = ref(0);
 const navItems = computed(() => {
  if (props.role === 'admin') {
  return [
@@ -74,6 +78,19 @@ const navItems = computed(() => {
  }
 });
 const currentPath = computed(() => route.path);
+const displayUnreadCount = computed(() => {
+ if (props.role === 'admin') {
+ return props.unreadCount;
+ }
+ return internalUnreadCount.value;
+});
+function shouldShowBadge(path) {
+ if (displayUnreadCount.value <= 0) return false;
+ if (props.role === 'admin') {
+ return path === '/admin/message';
+ }
+ return path === '/company/alert';
+}
 async function loadUnreadCount() {
  if (props.role !== 'company')
  return;
@@ -82,7 +99,7 @@ async function loadUnreadCount() {
  if (!token)
  return;
  const result = await api.getUnreadAlertCount(token);
- unreadCount.value = result.unreadCount || 0;
+ internalUnreadCount.value = result.unreadCount || 0;
  }
  catch (error) {
  console.error('获取未读预警数量失败:', handleApiError(error));
@@ -92,7 +109,7 @@ async function loadUnreadCount() {
 function handleAlertCountUpdated() {
  const count = localStorage.getItem('alertUnreadCount');
  if (count !== null) {
- unreadCount.value = parseInt(count) || 0;
+ internalUnreadCount.value = parseInt(count) || 0;
  }
 }
 
