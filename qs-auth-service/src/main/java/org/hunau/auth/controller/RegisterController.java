@@ -3,8 +3,8 @@ package org.hunau.auth.controller;
 import jakarta.servlet.http.HttpServletResponse;
 import org.hunau.auth.model.RegisterRequest;
 import org.hunau.auth.service.RegisterService;
-import org.hunau.common.R;
-import org.hunau.common.ResultCode;
+import org.hunau.common.model.R;
+import org.hunau.common.enums.ResultCode;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,7 +27,7 @@ public class RegisterController {
         try {
             return R.ok(registerService.register(request));
         } catch (IllegalArgumentException ex) {
-            response.setStatus(ResultCode.PARAM_ERROR);
+            response.setStatus(ResultCode.PARAM_ERROR.getCode());
             return R.fail(ResultCode.PARAM_ERROR, ex.getMessage());
         }
     }
@@ -37,7 +37,7 @@ public class RegisterController {
         try {
             return R.ok(registerService.registerAdmin(request));
         } catch (IllegalArgumentException ex) {
-            response.setStatus(ResultCode.PARAM_ERROR);
+            response.setStatus(ResultCode.PARAM_ERROR.getCode());
             return R.fail(ResultCode.PARAM_ERROR, ex.getMessage());
         }
     }

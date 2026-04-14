@@ -1,7 +1,7 @@
 package org.hunau.alert.model;
 
 import lombok.Data;
-import org.hunau.common.RiskLevel;
+import org.hunau.common.enums.RiskLevel;
 
 import java.time.LocalDateTime;
 

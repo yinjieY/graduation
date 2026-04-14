@@ -1,7 +1,7 @@
 package org.hunau.scan.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.common.util.JwtUtil;
 import org.hunau.scan.model.FeedbackStatusUpdateRequest;
 import org.hunau.scan.service.FeedbackService;

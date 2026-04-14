@@ -1,6 +1,6 @@
 package org.hunau.alert.client;
 
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.alert.config.FeignClientConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;

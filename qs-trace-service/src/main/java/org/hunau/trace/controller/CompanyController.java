@@ -1,7 +1,7 @@
 package org.hunau.trace.controller;
 
 import jakarta.annotation.Resource;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.trace.entity.Company;
 import org.hunau.trace.model.req.InitCompanyRequest;
 import org.hunau.trace.model.req.UpdateCompanyGovernanceRequest;

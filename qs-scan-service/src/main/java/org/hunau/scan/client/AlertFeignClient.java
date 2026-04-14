@@ -1,6 +1,6 @@
 package org.hunau.scan.client;
 
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

@@ -1,6 +1,6 @@
 package org.hunau.scan.client;
 
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 

@@ -1,7 +1,7 @@
 package org.hunau.alert.service;
 
 import org.hunau.alert.model.AlertRecord;
-import org.hunau.common.RiskLevel;
+import org.hunau.common.enums.RiskLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;

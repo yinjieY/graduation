@@ -2,7 +2,7 @@ package org.hunau.trace.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.annotation.Resource;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.common.exception.BusinessException;
 import org.hunau.common.util.AssertUtil;
 import org.hunau.trace.client.TraceExternalClient;

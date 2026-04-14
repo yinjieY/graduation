@@ -1,6 +1,6 @@
 package org.hunau.trace.client;
 
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;

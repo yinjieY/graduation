@@ -1,6 +1,6 @@
 package org.hunau.trace.controller;
 
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.trace.service.QsCodeService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

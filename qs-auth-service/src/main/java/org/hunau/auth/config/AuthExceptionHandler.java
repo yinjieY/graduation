@@ -1,7 +1,7 @@
 package org.hunau.auth.config;
 
-import org.hunau.common.R;
-import org.hunau.common.ResultCode;
+import org.hunau.common.model.R;
+import org.hunau.common.enums.ResultCode;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -20,7 +20,7 @@ public class AuthExceptionHandler {
 
     @ExceptionHandler(UsernameNotFoundException.class)
     public R<?> handleUsernameNotFound(UsernameNotFoundException e) {
-        return R.fail(ResultCode.NO_AUTH, e.getMessage());
+        return R.fail(ResultCode.UNAUTHORIZED, e.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -49,5 +49,3 @@ public class AuthExceptionHandler {
         return R.fail(ResultCode.ERROR, "服务器异常: " + e.getMessage());
     }
 }
-
-

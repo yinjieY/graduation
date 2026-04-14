@@ -1,7 +1,7 @@
 package org.hunau.trace.controller;
 
 import jakarta.annotation.Resource;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.trace.entity.ProductBatch;
 import org.hunau.trace.service.ProductBatchService;
 import org.springframework.security.access.prepost.PreAuthorize;

@@ -1,7 +1,7 @@
 package org.hunau.common.exception;
 
-import org.hunau.common.R;
-import org.hunau.common.ResultCode;
+import org.hunau.common.model.R;
+import org.hunau.common.enums.ResultCode;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,31 +24,31 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public R<?> handleIllegalArgument(IllegalArgumentException e, HttpServletResponse response) {
-        response.setStatus(ResultCode.PARAM_ERROR);
+        response.setStatus(ResultCode.PARAM_ERROR.getCode());
         return R.fail(ResultCode.PARAM_ERROR, e.getMessage());
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public R<?> handleMissingParam(MissingServletRequestParameterException e, HttpServletResponse response) {
-        response.setStatus(ResultCode.PARAM_ERROR);
+        response.setStatus(ResultCode.PARAM_ERROR.getCode());
         return R.fail(ResultCode.PARAM_ERROR, "缺少请求参数: " + e.getParameterName());
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public R<?> handleTypeMismatch(MethodArgumentTypeMismatchException e, HttpServletResponse response) {
-        response.setStatus(ResultCode.PARAM_ERROR);
+        response.setStatus(ResultCode.PARAM_ERROR.getCode());
         return R.fail(ResultCode.PARAM_ERROR, "参数类型错误: " + e.getName());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public R<?> handleBodyNotReadable(HttpMessageNotReadableException e, HttpServletResponse response) {
-        response.setStatus(ResultCode.PARAM_ERROR);
+        response.setStatus(ResultCode.PARAM_ERROR.getCode());
         return R.fail(ResultCode.PARAM_ERROR, "请求体格式错误，请检查 JSON 字段和类型: " + e.getMostSpecificCause().getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public R<?> handleMethodArgumentNotValid(MethodArgumentNotValidException e, HttpServletResponse response) {
-        response.setStatus(ResultCode.PARAM_ERROR);
+        response.setStatus(ResultCode.PARAM_ERROR.getCode());
         String msg = e.getBindingResult().getFieldErrors().stream()
                 .map(err -> err.getField() + ":" + err.getDefaultMessage())
                 .collect(Collectors.joining("; "));
@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public R<?> handleAll(Exception e, HttpServletResponse response) {
-        response.setStatus(ResultCode.ERROR);
+        response.setStatus(ResultCode.ERROR.getCode());
         return R.fail(ResultCode.ERROR, "服务器异常，请联系管理员。详细信息: " + e.getMessage());
     }
 }

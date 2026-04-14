@@ -3,7 +3,7 @@ package org.hunau.auth.controller;
 import org.hunau.auth.model.CompanyApplyRequest;
 import org.hunau.auth.model.CompanyReviewRequest;
 import org.hunau.auth.service.CompanyAuthService;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.common.util.JwtUtil;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;

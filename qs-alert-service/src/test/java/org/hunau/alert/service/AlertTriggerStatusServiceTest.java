@@ -1,6 +1,6 @@
 package org.hunau.alert.service;
 
-import org.hunau.common.RiskLevel;
+import org.hunau.common.enums.RiskLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

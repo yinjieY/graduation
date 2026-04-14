@@ -1,6 +1,6 @@
 package org.hunau.scan.service;
 
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.common.util.AssertUtil;
 import org.hunau.common.util.GeoUtil;
 import org.hunau.common.util.MaskUtil;

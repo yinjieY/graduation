@@ -2,8 +2,8 @@ package org.hunau.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hunau.auth.service.impl.SysUserDetailsService;
-import org.hunau.common.R;
-import org.hunau.common.ResultCode;
+import org.hunau.common.model.R;
+import org.hunau.common.enums.ResultCode;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -17,7 +17,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-// 使用@EnableWebSecurity注解开启Spring Security功能
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -64,14 +63,14 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(ResultCode.NO_AUTH);
+                            response.setStatus(ResultCode.UNAUTHORIZED.getCode());
                             response.setCharacterEncoding("UTF-8");
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            R<String> body = R.fail(ResultCode.NO_AUTH, "未登录或Token无效，请先登录");
+                            R<String> body = R.fail(ResultCode.UNAUTHORIZED, "未登录或Token无效，请先登录");
                             response.getWriter().write(objectMapper.writeValueAsString(body));
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            response.setStatus(ResultCode.NO_PERMISSION);
+                            response.setStatus(ResultCode.NO_PERMISSION.getCode());
                             response.setCharacterEncoding("UTF-8");
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             R<String> body = R.fail(ResultCode.NO_PERMISSION, "权限不足，无法访问该接口");

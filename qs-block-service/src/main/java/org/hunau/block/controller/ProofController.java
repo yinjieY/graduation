@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hunau.block.model.ProofRecord;
 import org.hunau.block.service.ProofService;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.common.exception.BusinessException;
 import org.springframework.web.bind.annotation.*;
 

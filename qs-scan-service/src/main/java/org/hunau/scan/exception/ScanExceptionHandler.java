@@ -1,7 +1,7 @@
 package org.hunau.scan.exception;
 
-import org.hunau.common.R;
-import org.hunau.common.ResultCode;
+import org.hunau.common.model.R;
+import org.hunau.common.enums.ResultCode;
 import org.hunau.common.exception.BusinessException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;

@@ -6,7 +6,7 @@ import org.hunau.alert.model.RuleStatusUpdateRequest;
 import org.hunau.alert.model.RuleThresholdUpdateRequest;
 import org.hunau.alert.service.AlertRuleEngineService;
 import org.hunau.alert.service.AlertService;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.common.util.AssertUtil;
 import org.hunau.common.util.JwtUtil;
 import org.springframework.security.core.Authentication;

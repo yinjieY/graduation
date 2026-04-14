@@ -1,7 +1,7 @@
 package org.hunau.auth.service;
 
 import org.hunau.auth.client.TraceFeignClient;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

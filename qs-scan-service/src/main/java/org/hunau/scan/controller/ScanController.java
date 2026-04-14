@@ -1,6 +1,6 @@
 package org.hunau.scan.controller;
 
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.scan.model.ScanRequest;
 import org.hunau.scan.service.ReusePatternScheduler;
 import org.hunau.scan.service.ScanLogService;

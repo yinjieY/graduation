@@ -1,7 +1,7 @@
 package org.hunau.auth.controller;
 
 import org.hunau.auth.details.SysUserDetails;
-import org.hunau.common.R;
+import org.hunau.common.model.R;
 import org.hunau.common.util.JwtUtil;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
