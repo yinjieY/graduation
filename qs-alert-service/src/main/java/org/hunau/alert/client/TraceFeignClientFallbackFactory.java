@@ -21,6 +21,11 @@ public class TraceFeignClientFallbackFactory implements FallbackFactory<TraceFei
             public R<?> getQsCodeDetail(String qsId) {
                 return R.fail("溯源服务不可用: " + (cause == null ? "unknown" : cause.getMessage()));
             }
+
+            @Override
+            public R<?> getCompanyInfoById(String companyId) {
+                return R.fail("溯源服务不可用: " + (cause == null ? "unknown" : cause.getMessage()));
+            }
         };
     }
 }

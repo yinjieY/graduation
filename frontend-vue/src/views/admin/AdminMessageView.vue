@@ -53,7 +53,8 @@ async function loadMessages() {
   loading.value = true;
   try {
     const res = await getMessages(token.value);
-    messages.value = res.data || [];
+    const groupedData = res.data || [];
+    messages.value = groupedData.flatMap(batch => batch.alerts || []);
   } catch (error) {
     console.error('加载系统消息失败:', error);
   } finally {

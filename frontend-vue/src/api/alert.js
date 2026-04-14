@@ -2,7 +2,6 @@ import { apiFetch, authHeaders } from './http';
 
 export function getMessages(token) {
   console.log('调用 getMessages，token:', token);
-  // 从localStorage获取companyUserInfo
   try {
     const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
     const companyId = userInfo.companyId || '';
@@ -17,6 +16,86 @@ export function getMessages(token) {
     console.error('获取companyId失败:', error);
   }
   return apiFetch('/alert/messages', {
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
+export function getSystemNotifications(token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/alert/system-notifications?companyId=${encodeURIComponent(companyId)}`, {
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch('/alert/system-notifications', {
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
+export function getUnreadNotificationCount(token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/alert/system-notifications/unread/count?companyId=${encodeURIComponent(companyId)}`, {
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch('/alert/system-notifications/unread/count', {
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
+export function markNotificationAsRead(notificationId, token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/alert/system-notifications/${encodeURIComponent(notificationId)}/read?companyId=${encodeURIComponent(companyId)}`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch(`/alert/system-notifications/${encodeURIComponent(notificationId)}/read`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
+export function markAllNotificationsAsRead(token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/alert/system-notifications/read/all?companyId=${encodeURIComponent(companyId)}`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch('/alert/system-notifications/read/all', {
+    method: 'POST',
     headers: authHeaders(token),
     noCache: true
   });

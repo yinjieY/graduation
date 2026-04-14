@@ -1,5 +1,6 @@
 package org.hunau.auth.service;
 
+import org.hunau.auth.client.AlertFeignClient;
 import org.hunau.auth.client.TraceFeignClient;
 import org.hunau.common.model.R;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,10 +27,13 @@ public class CompanyAuthService {
 
     private final JdbcTemplate jdbcTemplate;
     private final TraceFeignClient traceFeignClient;
+    private final AlertFeignClient alertFeignClient;
 
-    public CompanyAuthService(JdbcTemplate jdbcTemplate, TraceFeignClient traceFeignClient) {
+    public CompanyAuthService(JdbcTemplate jdbcTemplate, TraceFeignClient traceFeignClient, 
+                             AlertFeignClient alertFeignClient) {
         this.jdbcTemplate = jdbcTemplate;
         this.traceFeignClient = traceFeignClient;
+        this.alertFeignClient = alertFeignClient;
     }
 
     public boolean isApproved(String companyId) {
@@ -177,7 +181,29 @@ public class CompanyAuthService {
         if (approved) {
             initTraceCompany(normalizedCompanyId, normalizedCompanyName, data);
         }
+        
+        sendReviewNotification(normalizedCompanyId, normalizedCompanyName, approved, normalizedReviewer, finalRemark);
+        
         return data;
+    }
+    
+    private void sendReviewNotification(String companyId, String companyName, boolean approved, String reviewer, String remark) {
+        try {
+            Map<String, Object> body = new HashMap<>();
+            body.put("companyId", companyId);
+            body.put("companyName", companyName);
+            body.put("actionType", approved ? "COMPANY_AUTH_APPROVED" : "COMPANY_AUTH_REJECTED");
+            body.put("actionContent", approved 
+                    ? "您的企业认证申请已通过审核，审核人：" + reviewer 
+                    : "您的企业认证申请未通过审核，原因：" + remark);
+            body.put("sourceModule", "COMPANY_AUTH");
+            body.put("sourceId", companyId);
+            body.put("operator", reviewer);
+            
+            alertFeignClient.sendAdminActionNotification(body);
+        } catch (Exception ex) {
+            // 通知发送失败不影响主流程
+        }
     }
 
     private void initTraceCompany(String companyId, String companyName, Map<String, Object> reviewData) {

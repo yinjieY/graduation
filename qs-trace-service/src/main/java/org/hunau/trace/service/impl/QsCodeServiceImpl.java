@@ -8,6 +8,7 @@ import org.hunau.common.exception.BusinessException;
 import org.hunau.common.util.AssertUtil;
 import org.hunau.common.util.IdFormatUtil;
 import org.hunau.common.util.Sm2Util;
+import org.hunau.trace.client.AlertFeignClient;
 import org.hunau.trace.client.TraceExternalClient;
 import org.hunau.trace.entity.Company;
 import org.hunau.trace.entity.ProductBatch;
@@ -57,6 +58,8 @@ public class QsCodeServiceImpl implements QsCodeService {
     private TraceExternalClient traceExternalClient;
     @Resource
     private QrCodeImageService qrCodeImageService;
+    @Resource
+    private AlertFeignClient alertFeignClient;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -312,7 +315,55 @@ public class QsCodeServiceImpl implements QsCodeService {
                 // Keep status update available even if block service is down.
             }
         }
+        
+        String originalStatus = qsCode.getStatus();
+        if ("frozen".equals(status) && !"frozen".equals(originalStatus)) {
+            sendFreezeNotification(qsId, qsCode.getCompanyId());
+        } else if ("active".equals(status) && "frozen".equals(originalStatus)) {
+            sendUnfreezeNotification(qsId, qsCode.getCompanyId());
+        }
+        
         return getByQsId(qsId);
+    }
+    
+    private void sendFreezeNotification(String qsId, String companyId) {
+        try {
+            Company company = companyMapper.selectById(companyId);
+            String companyName = company != null ? company.getName() : "";
+            
+            Map<String, Object> body = new HashMap<>();
+            body.put("companyId", companyId);
+            body.put("companyName", companyName);
+            body.put("actionType", "QS_CODE_FROZEN");
+            body.put("actionContent", "您的二维码【" + qsId + "】已被管理员冻结");
+            body.put("sourceModule", "TRACE_SERVICE");
+            body.put("sourceId", qsId);
+            body.put("operator", "ADMIN");
+            
+            alertFeignClient.sendAdminActionNotification(body);
+        } catch (Exception ex) {
+            // 通知发送失败不影响主流程
+        }
+    }
+    
+    private void sendUnfreezeNotification(String qsId, String companyId) {
+        try {
+            Company company = companyMapper.selectById(companyId);
+            String companyName = company != null ? company.getName() : "";
+            
+            Map<String, Object> body = new HashMap<>();
+            body.put("companyId", companyId);
+            body.put("companyName", companyName);
+            body.put("actionType", "QS_CODE_UNFROZEN");
+            body.put("actionContent", "您的二维码【" + qsId + "】已被管理员解冻");
+            body.put("sourceModule", "TRACE_SERVICE");
+            body.put("sourceId", qsId);
+            body.put("operator", "ADMIN");
+            
+            alertFeignClient.sendAdminActionNotification(body);
+        } catch (Exception ex) {
+            // 通知发送失败不影响主流程
+        }
     }
 
     @Override

@@ -1,9 +1,11 @@
 package org.hunau.alert.controller;
 
+import org.hunau.alert.model.AdminActionNotificationRequest;
 import org.hunau.alert.model.AlertEvaluateRequest;
 import org.hunau.alert.model.FeedbackMessageRequest;
 import org.hunau.alert.model.RuleStatusUpdateRequest;
 import org.hunau.alert.model.RuleThresholdUpdateRequest;
+import org.hunau.alert.service.AdminActionNotificationService;
 import org.hunau.alert.service.AlertRuleEngineService;
 import org.hunau.alert.service.AlertService;
 import org.hunau.common.model.R;
@@ -19,10 +21,13 @@ public class AlertController {
 
     private final AlertService alertService;
     private final AlertRuleEngineService alertRuleEngineService;
+    private final AdminActionNotificationService adminActionNotificationService;
 
-    public AlertController(AlertService alertService, AlertRuleEngineService alertRuleEngineService) {
+    public AlertController(AlertService alertService, AlertRuleEngineService alertRuleEngineService,
+                          AdminActionNotificationService adminActionNotificationService) {
         this.alertService = alertService;
         this.alertRuleEngineService = alertRuleEngineService;
+        this.adminActionNotificationService = adminActionNotificationService;
     }
 
     @PostMapping("/evaluate")
@@ -99,6 +104,35 @@ public class AlertController {
         return R.ok(alertRuleEngineService.reloadNow());
     }
 
+    @GetMapping("/system-notifications")
+    public R<?> listSystemNotifications(@RequestParam(value = "companyId", required = false) String companyIdParam,
+                                        @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
+        return alertService.listSystemNotifications(companyId);
+    }
+
+    @PostMapping("/system-notifications/{notificationId}/read")
+    public R<?> markNotificationAsRead(@PathVariable Long notificationId,
+                                       @RequestParam(value = "companyId", required = false) String companyIdParam,
+                                       @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
+        return alertService.markNotificationAsRead(notificationId, companyId);
+    }
+
+    @PostMapping("/system-notifications/read/all")
+    public R<?> markAllNotificationsAsRead(@RequestParam(value = "companyId", required = false) String companyIdParam,
+                                           @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
+        return alertService.markAllNotificationsAsRead(companyId);
+    }
+
+    @GetMapping("/system-notifications/unread/count")
+    public R<?> countUnreadNotifications(@RequestParam(value = "companyId", required = false) String companyIdParam,
+                                         @RequestHeader(value = "Authorization", required = false) String authorization) {
+        String companyId = companyIdParam != null ? companyIdParam.trim() : resolveCompanyId(authorization);
+        return alertService.countUnreadNotifications(companyId);
+    }
+
     private String resolveRole(Authentication authentication) {
         if (authentication == null) {
             return "";
@@ -110,6 +144,11 @@ public class AlertController {
             }
         }
         return "";
+    }
+
+    @PostMapping("/admin/action/notify")
+    public R<?> sendAdminActionNotification(@RequestBody AdminActionNotificationRequest request) {
+        return adminActionNotificationService.sendNotification(request);
     }
 
     private String resolveCompanyId(String authorization) {

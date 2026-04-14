@@ -29,19 +29,22 @@ public class AlertService {
     private final TraceFeignClient traceFeignClient;
     private final BlockFeignClient blockFeignClient;
     private final JdbcTemplate jdbcTemplate;
+    private final AdminActionNotificationService adminActionNotificationService;
 
     public AlertService(AiRiskService aiRiskService,
                         AlertRuleEngineService alertRuleEngineService,
                         AlertTriggerStatusService alertTriggerStatusService,
                         TraceFeignClient traceFeignClient,
                         BlockFeignClient blockFeignClient,
-                        JdbcTemplate jdbcTemplate) {
+                        JdbcTemplate jdbcTemplate,
+                        AdminActionNotificationService adminActionNotificationService) {
         this.aiRiskService = aiRiskService;
         this.alertRuleEngineService = alertRuleEngineService;
         this.alertTriggerStatusService = alertTriggerStatusService;
         this.traceFeignClient = traceFeignClient;
         this.blockFeignClient = blockFeignClient;
         this.jdbcTemplate = jdbcTemplate;
+        this.adminActionNotificationService = adminActionNotificationService;
     }
 
     public R<AlertRecord> evaluate(AlertEvaluateRequest req) {
@@ -124,7 +127,7 @@ public class AlertService {
             }
         }
         if (level == RiskLevel.HIGH) {
-            freezeQsCode(record.getQsId());
+            freezeQsCode(record.getQsId(), record.getCompanyId());
         }
 
         return R.ok(record);
@@ -436,13 +439,14 @@ public class AlertService {
         }
     }
 
-    private void freezeQsCode(String qsId) {
+    private void freezeQsCode(String qsId, String companyId) {
         Map<String, Object> body = new HashMap<>();
         body.put("status", "frozen");
         try {
             R<?> response = traceFeignClient.changeStatus(qsId, body);
             if (response != null && response.getCode() == 200) {
                 persistActionByQsId(qsId, "冻结二维码成功");
+                sendFreezeNotification(qsId, companyId);
                 return;
             }
             String reason = response == null ? "响应为空" : String.valueOf(response.getMsg());
@@ -455,6 +459,37 @@ public class AlertService {
             persistActionByQsId(qsId, "冻结二维码失败: " + reason);
             // keep alert path non-blocking when trace service is unstable
         }
+    }
+    
+    private void sendFreezeNotification(String qsId, String companyId) {
+        try {
+            String companyName = getCompanyNameById(companyId);
+            
+            Map<String, Object> body = new HashMap<>();
+            body.put("companyId", companyId);
+            body.put("companyName", companyName);
+            body.put("actionType", "QS_CODE_FROZEN");
+            body.put("actionContent", "您的二维码【" + qsId + "】因高风险预警已被系统冻结");
+            body.put("sourceModule", "ALERT_SYSTEM");
+            body.put("sourceId", qsId);
+            body.put("operator", "SYSTEM");
+            
+            adminActionNotificationService.sendNotification(body);
+        } catch (Exception ex) {
+            // 通知发送失败不影响主流程
+        }
+    }
+    
+    private String getCompanyNameById(String companyId) {
+        try {
+            R<?> response = traceFeignClient.getCompanyInfoById(companyId);
+            if (response != null && response.getCode() == 200 && response.getData() != null) {
+                Map<String, Object> data = (Map<String, Object>) response.getData();
+                return (String) data.getOrDefault("name", "");
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
     }
 
     private boolean sendNotification(AlertRecord record) {
@@ -649,4 +684,114 @@ public class AlertService {
         row.put("batchName", rs.getString("batch_name"));
         return row;
     }
-}
+
+    public R<List<Map<String, Object>>> listSystemNotifications(String companyId) {
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+        
+        String sql = "SELECT n.notification_id, n.company_id, n.title, n.content, n.type, n.source_module, n.source_id, n.created_at, " +
+                     "CASE WHEN n.company_id IS NOT NULL THEN n.status ELSE " +
+                     "    CASE WHEN r.read_time IS NOT NULL THEN 'READ' ELSE 'UNREAD' END " +
+                     "END as status, " +
+                     "CASE WHEN n.company_id IS NOT NULL THEN n.read_time ELSE r.read_time END as read_time " +
+                     "FROM sys_notification n " +
+                     "LEFT JOIN notification_read r ON n.notification_id = r.notification_id AND r.company_id = ? " +
+                     "WHERE n.company_id IS NULL OR n.company_id = ? " +
+                     "ORDER BY n.created_at DESC LIMIT 100";
+        
+        List<Map<String, Object>> notifications = jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("notificationId", rs.getLong("notification_id"));
+            row.put("companyId", rs.getString("company_id"));
+            row.put("title", rs.getString("title"));
+            row.put("content", rs.getString("content"));
+            row.put("type", rs.getString("type"));
+            row.put("status", rs.getString("status"));
+            row.put("sourceModule", rs.getString("source_module"));
+            row.put("sourceId", rs.getString("source_id"));
+            row.put("createdAt", rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime());
+            row.put("readTime", rs.getTimestamp("read_time") == null ? null : rs.getTimestamp("read_time").toLocalDateTime());
+            return row;
+        }, normalizedCompanyId, normalizedCompanyId);
+        
+        return R.ok(notifications);
+    }
+
+    public R<Map<String, Object>> markNotificationAsRead(Long notificationId, String companyId) {
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+        
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_notification WHERE notification_id = ?",
+                Integer.class,
+                notificationId
+        );
+        
+        if (count == null || count == 0) {
+            return R.fail("通知不存在");
+        }
+        
+        String companyIdVal = jdbcTemplate.queryForObject(
+                "SELECT company_id FROM sys_notification WHERE notification_id = ?",
+                String.class,
+                notificationId
+        );
+        
+        if (companyIdVal != null && !companyIdVal.isBlank()) {
+            jdbcTemplate.update(
+                    "UPDATE sys_notification SET status = 'READ', read_time = NOW() WHERE notification_id = ?",
+                    notificationId
+            );
+        } else {
+            jdbcTemplate.update(
+                    "INSERT INTO notification_read(notification_id, company_id, read_time) VALUES (?, ?, NOW()) " +
+                    "ON DUPLICATE KEY UPDATE read_time = NOW(), status = 'READ'",
+                    notificationId,
+                    normalizedCompanyId
+            );
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("notificationId", notificationId);
+        result.put("marked", true);
+        return R.ok(result);
+    }
+
+    public R<Map<String, Object>> markAllNotificationsAsRead(String companyId) {
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+        
+        jdbcTemplate.update(
+                "UPDATE sys_notification SET status = 'READ', read_time = NOW() " +
+                "WHERE company_id = ? AND status = 'UNREAD'",
+                normalizedCompanyId
+        );
+        
+        jdbcTemplate.update(
+                "INSERT INTO notification_read(notification_id, company_id, read_time) " +
+                "SELECT n.notification_id, ?, NOW() FROM sys_notification n " +
+                "WHERE n.company_id IS NULL " +
+                "AND NOT EXISTS (SELECT 1 FROM notification_read r WHERE r.notification_id = n.notification_id AND r.company_id = ?)",
+                normalizedCompanyId,
+                normalizedCompanyId
+        );
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("marked", true);
+        return R.ok(result);
+    }
+
+    public R<Map<String, Object>> countUnreadNotifications(String companyId) {
+        String normalizedCompanyId = companyId == null ? "" : companyId.trim();
+        
+        String sql = "SELECT " +
+                     "(SELECT COUNT(*) FROM sys_notification WHERE company_id = ? AND status = 'UNREAD') + " +
+                     "(SELECT COUNT(*) FROM sys_notification n WHERE n.company_id IS NULL AND NOT EXISTS " +
+                     "    (SELECT 1 FROM notification_read r WHERE r.notification_id = n.notification_id AND r.company_id = ?)) " +
+                     "as count";
+        
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, normalizedCompanyId, normalizedCompanyId);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("unreadCount", count != null ? count : 0);
+        return R.ok(result);
+    }
+
+    }

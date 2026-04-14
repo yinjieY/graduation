@@ -285,6 +285,47 @@ CREATE TABLE `alert_action` (
 INSERT INTO `alert_action` (`alert_id`,`action_type`,`result`) VALUES
     (1,'notify','发送预警成功');
 
+-- 3.12 创建系统通知表
+-- 用途：存储系统公告、审核结果、操作日志等通知信息
+CREATE TABLE `sys_notification` (
+    `notification_id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '通知记录自增ID',
+    `company_id` VARCHAR(32) NULL COMMENT '关联企业ID（为空表示系统公告）',
+    `title` VARCHAR(100) NOT NULL COMMENT '通知标题',
+    `content` TEXT NOT NULL COMMENT '通知内容',
+    `type` VARCHAR(20) NOT NULL COMMENT '通知类型：SYSTEM(系统公告)/REVIEW(审核结果)/OPERATION(操作日志)',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'UNREAD' COMMENT '通知状态：UNREAD/READ(仅定向消息使用)',
+    `source_module` VARCHAR(50) NULL COMMENT '来源模块',
+    `source_id` VARCHAR(64) NULL COMMENT '来源业务ID',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '通知创建时间',
+    `read_time` DATETIME NULL COMMENT '阅读时间(仅定向消息使用)',
+    KEY `idx_company_id` (`company_id`),
+    KEY `idx_type` (`type`),
+    KEY `idx_status` (`status`),
+    KEY `idx_created_at` (`created_at`),
+    UNIQUE KEY `uk_notification_unique` (`company_id`, `title`(50), `type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统通知表';
+
+-- 3.13 创建系统公告已读记录表
+-- 用途：记录企业对系统公告的阅读状态（系统公告所有企业共享，需单独记录阅读状态）
+CREATE TABLE `notification_read` (
+    `read_id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '已读记录自增ID',
+    `notification_id` BIGINT NOT NULL COMMENT '关联通知ID',
+    `company_id` VARCHAR(32) NOT NULL COMMENT '企业ID',
+    `read_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '阅读时间',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'READ' COMMENT '阅读状态',
+    KEY `idx_notification_id` (`notification_id`),
+    KEY `idx_company_id` (`company_id`),
+    UNIQUE KEY `uk_notification_company` (`notification_id`, `company_id`),
+    CONSTRAINT `fk_read_notification` FOREIGN KEY (`notification_id`) REFERENCES `sys_notification`(`notification_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统公告已读记录表';
+
+-- 3.14 插入系统通知测试数据
+INSERT INTO `sys_notification` (`company_id`, `title`, `content`, `type`, `source_module`, `source_id`) VALUES
+    ('C001', '批次审核结果通知', '您的批次【2026年第一批香干】已通过审核', 'REVIEW', 'BATCH', 'BATCH2026_C001_001'),
+    ('C001', '系统维护通知', '系统将于今晚22:00-24:00进行例行维护，届时可能影响部分功能', 'SYSTEM', 'SYSTEM', 'INIT_001'),
+    ('C002', '企业资质审核提醒', '您的企业资质审核正在处理中，请耐心等待', 'REVIEW', 'COMPANY_AUTH', 'C002'),
+    (NULL, '系统公告', '尊敬的用户，QSGuard溯源系统已正式上线！', 'SYSTEM', 'SYSTEM', 'INIT_002');
+
 -- ==================================================
 -- 库 4：yx_company_auth 企业认证与登录库
 -- 库注释：系统用户认证、权限、企业资质审核管理

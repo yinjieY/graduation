@@ -7,6 +7,7 @@ import org.hunau.common.model.R;
 import org.hunau.common.exception.BusinessException;
 import org.hunau.common.util.AssertUtil;
 import org.hunau.common.util.IdFormatUtil;
+import org.hunau.trace.client.AlertFeignClient;
 import org.hunau.trace.entity.Company;
 import org.hunau.trace.entity.ProductBatch;
 import org.hunau.trace.mapper.CompanyMapper;
@@ -18,7 +19,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ProductBatchServiceImpl implements ProductBatchService {
@@ -32,6 +35,8 @@ public class ProductBatchServiceImpl implements ProductBatchService {
     private ProductBatchMapper productBatchMapper;
     @Resource
     private CompanyMapper companyMapper;
+    @Resource
+    private AlertFeignClient alertFeignClient;
 
     @Override
     public R<?> createBatch(ProductBatch batch) {
@@ -234,7 +239,39 @@ public class ProductBatchServiceImpl implements ProductBatchService {
         if (affected <= 0) {
             throw new BusinessException("审核操作失败");
         }
+        
+        sendBatchReviewNotification(exist, status, comment);
+        
         return R.ok("审核成功");
+    }
+    
+    private void sendBatchReviewNotification(ProductBatch batch, String status, String comment) {
+        try {
+            Company company = companyMapper.selectById(batch.getCompanyId());
+            String companyName = company != null ? company.getName() : "";
+            String batchName = batch.getBatchName() != null && !batch.getBatchName().isBlank() 
+                    ? batch.getBatchName() : batch.getBatchId();
+            
+            Map<String, Object> body = new HashMap<>();
+            body.put("companyId", batch.getCompanyId());
+            body.put("companyName", companyName);
+            
+            if (STATUS_APPROVED.equals(status)) {
+                body.put("actionType", "BATCH_REVIEW_APPROVED");
+                body.put("actionContent", "您的批次【" + batchName + "】已通过审核");
+            } else {
+                body.put("actionType", "BATCH_REVIEW_REJECTED");
+                body.put("actionContent", "您的批次【" + batchName + "】审核未通过，原因：" + (comment != null ? comment : "无"));
+            }
+            
+            body.put("sourceModule", "BATCH_REVIEW");
+            body.put("sourceId", batch.getBatchId());
+            body.put("operator", "ADMIN");
+            
+            alertFeignClient.sendAdminActionNotification(body);
+        } catch (Exception ex) {
+            // 通知发送失败不影响主流程
+        }
     }
 
     @Override

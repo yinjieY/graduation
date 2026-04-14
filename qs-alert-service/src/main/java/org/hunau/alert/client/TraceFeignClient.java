@@ -23,6 +23,9 @@ public interface TraceFeignClient {
 
     @GetMapping("/trace/qs/get/{qsId}")
     R<?> getQsCodeDetail(@PathVariable("qsId") String qsId);
+    
+    @GetMapping("/trace/company/{companyId}")
+    R<?> getCompanyInfoById(@PathVariable("companyId") String companyId);
 }
 
 

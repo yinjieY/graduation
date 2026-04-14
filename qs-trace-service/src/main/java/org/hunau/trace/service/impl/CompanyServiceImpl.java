@@ -5,6 +5,7 @@ import jakarta.annotation.Resource;
 import org.hunau.common.model.R;
 import org.hunau.common.exception.BusinessException;
 import org.hunau.common.util.AssertUtil;
+import org.hunau.trace.client.AlertFeignClient;
 import org.hunau.trace.client.TraceExternalClient;
 import org.hunau.trace.entity.Company;
 import org.hunau.trace.mapper.CompanyMapper;
@@ -16,6 +17,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,8 @@ public class CompanyServiceImpl implements CompanyService {
     private CompanyMapper companyMapper;
     @Resource
     private TraceExternalClient traceExternalClient;
+    @Resource
+    private AlertFeignClient alertFeignClient;
 
     @Override
     public R<?> initCompany(InitCompanyRequest request) {
@@ -139,13 +143,21 @@ public class CompanyServiceImpl implements CompanyService {
             throw new BusinessException("企业不存在");
         }
 
+        String originalLevel = existed.getLevel();
+        Integer originalStatus = existed.getStatus();
+        
         boolean changed = false;
-        if (request.getLevel() != null && !request.getLevel().isBlank()) {
+        boolean levelChanged = false;
+        boolean statusChanged = false;
+        
+        if (request.getLevel() != null && !request.getLevel().isBlank() && !request.getLevel().equals(originalLevel)) {
             existed.setLevel(request.getLevel());
+            levelChanged = true;
             changed = true;
         }
-        if (request.getStatus() != null) {
+        if (request.getStatus() != null && !request.getStatus().equals(originalStatus)) {
             existed.setStatus(request.getStatus());
+            statusChanged = true;
             changed = true;
         }
         if (!changed) {
@@ -153,7 +165,46 @@ public class CompanyServiceImpl implements CompanyService {
         }
 
         companyMapper.updateById(existed);
+        
+        sendGovernanceNotification(existed, originalLevel, originalStatus);
+        
         return R.ok(existed);
+    }
+    
+    private void sendGovernanceNotification(Company company, String originalLevel, Integer originalStatus) {
+        try {
+            String actionType;
+            String actionContent;
+            
+            boolean levelChanged = company.getLevel() != null && !company.getLevel().equals(originalLevel);
+            boolean statusChanged = company.getStatus() != null && !company.getStatus().equals(originalStatus);
+            
+            if (levelChanged && statusChanged) {
+                actionType = "COMPANY_LEVEL_CHANGED";
+                actionContent = "您的企业等级已从【" + originalLevel + "】调整为【" + company.getLevel() + "】，状态已从【" + 
+                        (originalStatus == 1 ? "正常" : "禁用") + "】变更为【" + (company.getStatus() == 1 ? "正常" : "禁用") + "】";
+            } else if (levelChanged) {
+                actionType = "COMPANY_LEVEL_CHANGED";
+                actionContent = "您的企业等级已从【" + originalLevel + "】调整为【" + company.getLevel() + "】";
+            } else {
+                actionType = "COMPANY_STATUS_CHANGED";
+                actionContent = "您的企业状态已从【" + (originalStatus == 1 ? "正常" : "禁用") + "】变更为【" + 
+                        (company.getStatus() == 1 ? "正常" : "禁用") + "】";
+            }
+            
+            Map<String, Object> body = new HashMap<>();
+            body.put("companyId", company.getCompanyId());
+            body.put("companyName", company.getName());
+            body.put("actionType", actionType);
+            body.put("actionContent", actionContent);
+            body.put("sourceModule", "COMPANY_GOVERNANCE");
+            body.put("sourceId", company.getCompanyId());
+            body.put("operator", "ADMIN");
+            
+            alertFeignClient.sendAdminActionNotification(body);
+        } catch (Exception ex) {
+            // 通知发送失败不影响主流程
+        }
     }
 
     @Override
