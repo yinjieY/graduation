@@ -5,8 +5,10 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 
 
 FEATURE_COLUMNS = [
@@ -14,13 +16,12 @@ FEATURE_COLUMNS = [
     "time_variance",
     "location_variance",
     "device_count",
+    "ip_count",
 ]
 
 
 class DualChannelRiskModel(nn.Module):
-    """Small dual-channel model: Transformer-style + graph-style MLP branch."""
-
-    def __init__(self, in_dim: int = 4, hidden_dim: int = 32):
+    def __init__(self, in_dim: int = 5, hidden_dim: int = 32):
         super().__init__()
         self.time_proj = nn.Linear(in_dim, hidden_dim)
         encoder_layer = nn.TransformerEncoderLayer(
@@ -28,19 +29,23 @@ class DualChannelRiskModel(nn.Module):
             nhead=4,
             dim_feedforward=hidden_dim * 2,
             batch_first=True,
+            dropout=0.2,
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=2)
 
         self.graph_branch = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.2),
         )
 
         self.head = nn.Sequential(
             nn.Linear(hidden_dim * 2, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(hidden_dim, 2),
         )
 
@@ -53,13 +58,15 @@ class DualChannelRiskModel(nn.Module):
 
 
 class StudentRiskModel(nn.Module):
-    def __init__(self, in_dim: int = 4, hidden_dim: int = 16):
+    def __init__(self, in_dim: int = 5, hidden_dim: int = 32):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(hidden_dim, 2),
         )
 
@@ -67,42 +74,36 @@ class StudentRiskModel(nn.Module):
         return self.net(x)
 
 
-def build_training_frame(reuse_csv: Path) -> pd.DataFrame:
-    df = pd.read_csv(reuse_csv)
-    expected = set(FEATURE_COLUMNS + ["is_reused"])
-    missing = expected - set(df.columns)
-    if missing:
-        raise ValueError(f"missing required columns: {sorted(missing)}")
-    return df
+def calculate_metrics(y_true, y_pred, y_prob):
+    acc = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    auc = roc_auc_score(y_true, y_prob[:, 1])
+    cm = confusion_matrix(y_true, y_pred)
+    return {
+        "accuracy": acc,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "auc": auc,
+        "confusion_matrix": cm,
+    }
 
 
 def train_teacher(df: pd.DataFrame, epochs: int, lr: float):
     x = df[FEATURE_COLUMNS].values.astype(np.float32)
     y = df["is_reused"].values.astype(np.int64)
 
+    class_counts = np.bincount(y)
+    class_weights = torch.tensor([class_counts[0] / class_counts[1], 1.0], dtype=torch.float32)
+    print(f"数据分布: 负样本={class_counts[0]}, 正样本={class_counts[1]}, 权重={class_weights.numpy()}")
+
     scaler = StandardScaler()
     x_scaled = scaler.fit_transform(x).astype(np.float32)
 
     x_train, x_val, y_train, y_val = train_test_split(
-        x_scaled, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    model = DualChannelRiskModel(in_dim=len(FEATURE_COLUMNS))
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-
-    x_train_t = torch.tensor(x_train)
-    y_train_t = torch.tensor(y_train)
-    x_val_t = torch.tensor(x_val)
-    y_val_t = torch.tensor(y_val)
-
-    for epoch in range(epochs):
-        model.train()
-        logits = model(x_train_t)
-        loss = criterion(logits, y_train_t)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        x_scaled, y, teststep()
 
         model.eval()
         with torch.no_grad():

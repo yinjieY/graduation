@@ -213,6 +213,7 @@ CREATE TABLE `alert_rule` (
                               `rule_name` VARCHAR(100) NOT NULL COMMENT '预警规则名称',
                               `rule_content` TEXT NOT NULL COMMENT '预警规则触发逻辑',
                               `threshold` VARCHAR(50) NOT NULL COMMENT '预警触发阈值条件',
+                              `score_weight` DOUBLE NOT NULL DEFAULT 0.5 COMMENT '规则分数权重，用于计算风险分数',
                               `alert_level` TINYINT NOT NULL COMMENT '预警等级：1严重 2中等 3轻微',
                               `status` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '规则状态：1启用 0禁用',
                               `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '规则更新时间',
@@ -221,11 +222,11 @@ CREATE TABLE `alert_rule` (
 
 -- 3.6 插入预警规则测试数据
 -- 说明：创建三条测试预警规则，分别为高频扫码、多设备扫码和多IP扫码
-INSERT INTO `alert_rule` (`rule_id`,`rule_name`,`rule_content`,`threshold`,`alert_level`,`status`) VALUES
-    ('R000','AI模型触发','AI模型单独检测到风险（无规则命中）','AI_ONLY',1,1),
-    ('R001','高频扫码','IF scan_count_1h >= threshold THEN alert','1h>=5',2,1),
-    ('R002','多设备扫码','IF device_count_1d >= threshold THEN alert','1d>=10',2,1),
-    ('R003','多IP扫码','IF ip_count_1h >= threshold THEN alert','1h>=20',1,1);
+INSERT INTO `alert_rule` (`rule_id`,`rule_name`,`rule_content`,`threshold`,`score_weight`,`alert_level`,`status`) VALUES
+    ('R000','AI模型触发','AI模型单独检测到风险（无规则命中）','AI_ONLY',0.0,1,1),
+    ('R001','高频扫码','IF scan_count_1h >= threshold THEN alert','1h>=5',0.50,3,1),
+    ('R002','多设备扫码','IF device_count_1d >= threshold THEN alert','1d>=10',0.40,2,1),
+    ('R003','多IP扫码','IF ip_count_1h >= threshold THEN alert','1h>=20',0.45,1,1);
 
 -- 3.7 创建预警事件记录表
 -- 用途：记录触发的预警事件，包含预警原因、处理状态等

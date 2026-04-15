@@ -3,15 +3,16 @@ CREATE TABLE IF NOT EXISTS alert_rule (
     rule_name VARCHAR(100) NOT NULL,
     rule_content TEXT NOT NULL,
     threshold VARCHAR(50),
+    score_weight DOUBLE NOT NULL DEFAULT 0.5,
     alert_level TINYINT NOT NULL,
     status TINYINT NOT NULL DEFAULT 1,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO alert_rule(rule_id, rule_name, rule_content, threshold, alert_level, status) VALUES 
-    ('R001', '高频扫码', 'IF scan_count_1h >= threshold THEN alert', '1h>=5', 2, 1),
-    ('R002', '多设备扫码', 'IF device_count_1d >= threshold THEN alert', '1d>=10', 2, 1),
-    ('R003', '多IP扫码', 'IF ip_count_1h >= threshold THEN alert', '1h>=20', 1, 1);
+INSERT INTO alert_rule(rule_id, rule_name, rule_content, threshold, score_weight, alert_level, status) VALUES 
+    ('R001', '高频扫码', 'IF scan_count_1h >= threshold THEN alert', '1h>=5', 0.50, 2, 1),
+    ('R002', '多设备扫码', 'IF device_count_1d >= threshold THEN alert', '1d>=10', 0.40, 2, 1),
+    ('R003', '多IP扫码', 'IF ip_count_1h >= threshold THEN alert', '1h>=20', 0.45, 1, 1);
 
 CREATE TABLE IF NOT EXISTS alert_record (
     alert_id BIGINT AUTO_INCREMENT PRIMARY KEY,

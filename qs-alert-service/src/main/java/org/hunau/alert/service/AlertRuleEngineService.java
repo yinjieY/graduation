@@ -114,13 +114,17 @@ public class AlertRuleEngineService {
 
     public List<AlertRule> listRules() {
         return jdbcTemplate.query(
-                "SELECT rule_id,rule_name,rule_content,threshold,alert_level,status,update_time FROM alert_rule ORDER BY rule_id",
+                "SELECT rule_id,rule_name,rule_content,threshold,score_weight,alert_level,status,update_time FROM alert_rule ORDER BY rule_id",
                 this::mapRule
         );
     }
 
     public void updateThreshold(String ruleId, String threshold) {
         jdbcTemplate.update("UPDATE alert_rule SET threshold=?, update_time=NOW() WHERE rule_id=?", threshold, ruleId);
+    }
+
+    public void updateScoreWeight(String ruleId, Double scoreWeight) {
+        jdbcTemplate.update("UPDATE alert_rule SET score_weight=?, update_time=NOW() WHERE rule_id=?", scoreWeight, ruleId);
     }
 
     public void updateStatus(String ruleId, Integer status) {
@@ -164,7 +168,7 @@ public class AlertRuleEngineService {
 
     private List<AlertRule> loadActiveRules() {
         return jdbcTemplate.query(
-                "SELECT rule_id,rule_name,rule_content,threshold,alert_level,status,update_time FROM alert_rule WHERE status=1 ORDER BY rule_id",
+                "SELECT rule_id,rule_name,rule_content,threshold,score_weight,alert_level,status,update_time FROM alert_rule WHERE status=1 ORDER BY rule_id",
                 this::mapRule
         );
     }
@@ -175,6 +179,7 @@ public class AlertRuleEngineService {
         rule.setRuleName(rs.getString("rule_name"));
         rule.setRuleContent(rs.getString("rule_content"));
         rule.setThreshold(rs.getString("threshold"));
+        rule.setScoreWeight(rs.getDouble("score_weight"));
         rule.setAlertLevel(rs.getInt("alert_level"));
         rule.setStatus(rs.getInt("status"));
         rule.setUpdateTime(toLocalDateTime(rs, "update_time"));
@@ -185,15 +190,17 @@ public class AlertRuleEngineService {
         String content = rule.getRuleContent() == null ? "" : rule.getRuleContent().toLowerCase(Locale.ROOT);
         String ruleName = rule.getRuleName() == null ? "" : rule.getRuleName().toLowerCase(Locale.ROOT);
         String ruleId = rule.getRuleId() == null ? "" : rule.getRuleId().toLowerCase(Locale.ROOT);
+        
+        double dbWeight = rule.getScoreWeight() != null ? rule.getScoreWeight() : 0.0;
 
         if (content.contains("scan_count_1h") || content.contains("scans_1h") || ruleId.contains("scan") || ruleName.contains("高频")) {
-            return new MetricMapping("$f.getScanCount1h()", "1h扫码次数", 5, 0.40);
+            return new MetricMapping("$f.getScanCount1h()", "1h扫码次数", 5, dbWeight > 0 ? dbWeight : 0.50);
         }
         if (content.contains("device_count_1d") || content.contains("device_1d") || ruleId.contains("device") || ruleName.contains("设备")) {
-            return new MetricMapping("$f.getDeviceCount1d()", "1d设备数", 10, 0.35);
+            return new MetricMapping("$f.getDeviceCount1d()", "1d设备数", 10, dbWeight > 0 ? dbWeight : 0.40);
         }
         if (content.contains("ip_count_1h") || content.contains("ip_1h") || ruleId.contains("ip") || ruleName.contains("ip")) {
-            return new MetricMapping("$f.getIpCount1h()", "1hIP数", 20, 0.25);
+            return new MetricMapping("$f.getIpCount1h()", "1hIP数", 20, dbWeight > 0 ? dbWeight : 0.45);
         }
         return null;
     }

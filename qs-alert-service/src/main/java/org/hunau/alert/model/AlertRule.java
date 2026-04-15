@@ -10,6 +10,7 @@ public class AlertRule {
     private String ruleName;
     private String ruleContent;
     private String threshold;
+    private Double scoreWeight;
     private Integer alertLevel;
     private Integer status;
     private LocalDateTime updateTime;

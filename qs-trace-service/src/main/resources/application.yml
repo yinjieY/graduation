@@ -5,6 +5,8 @@ spring:
     name: qs-trace-service
   profiles:
     active: dev
+  jmx:
+    enabled: false
   config:
     import: optional:nacos:qs-trace-service-${spring.profiles.active}.yml
   cloud:

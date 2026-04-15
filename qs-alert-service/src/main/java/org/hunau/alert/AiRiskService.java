@@ -33,43 +33,86 @@ public class AiRiskService {
 
     @PostConstruct
     public void init() {
+        log.info("========== AI Risk Service Initialization ==========");
+        
         try {
+            log.info("Step 1/3: Creating ONNX environment...");
             env = OrtEnvironment.getEnvironment();
-            try (InputStream is = getClass().getClassLoader().getResourceAsStream("qs_risk_model.onnx")) {
-                if (is == null) {
-                    modelLoaded = false;
-                    log.warn("AI model not found: qs_risk_model.onnx, fallback mode only");
-                    return;
-                }
-                byte[] modelBytes = is.readAllBytes();
-                session = env.createSession(modelBytes);
-                modelLoaded = true;
-                log.info("AI model loaded, bytes={}, inputs={}, outputs={}",
-                        modelBytes.length,
-                        session.getInputNames(),
-                        session.getOutputNames());
+            log.info("✓ ONNX environment created successfully");
+            
+            log.info("Step 2/3: Loading model resource...");
+            String resourcePath = "qs_risk_model.onnx";
+            InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath);
+            
+            if (is == null) {
+                log.error("✗ AI model not found in classpath: {}", resourcePath);
+                log.error("  - Please verify the file exists in: src/main/resources/");
+                modelLoaded = false;
+                log.warn("AI model init failed - using fallback mode only");
+                return;
             }
+            
+            log.info("✓ Model resource found, reading bytes...");
+            byte[] modelBytes = is.readAllBytes();
+            log.info("✓ Model bytes read: {} KB", modelBytes.length / 1024);
+            
+            log.info("Step 3/3: Creating ONNX session...");
+            session = env.createSession(modelBytes);
+            modelLoaded = true;
+            
+            Set<String> inputNames = session.getInputNames();
+            Set<String> outputNames = session.getOutputNames();
+            log.info("✓ AI model loaded successfully!");
+            log.info("  - Inputs: {}", inputNames);
+            log.info("  - Outputs: {}", outputNames);
+            
+            try (OnnxTensor dummy = OnnxTensor.createTensor(env, FloatBuffer.wrap(new float[5]), new long[]{1, 5})) {
+                String inputName = inputNames.iterator().next();
+                try (OrtSession.Result res = session.run(Collections.singletonMap(inputName, dummy))) {
+                    Object output = res.get(0).getValue();
+                    log.info("✓ Model inference test passed, output type: {}", 
+                            output == null ? "null" : output.getClass().getSimpleName());
+                }
+            }
+            
+        } catch (OrtException ex) {
+            session = null;
+            modelLoaded = false;
+            log.error("✗ ONNX Runtime Exception: {}", ex.getMessage());
+            log.error("  - Please check ONNX Runtime version compatibility");
+            log.warn("AI model init failed - using fallback mode only");
         } catch (Exception ex) {
             session = null;
             modelLoaded = false;
-            log.warn("AI model init failed, fallback mode only: {}", ex.getMessage());
+            log.error("✗ Unexpected error during model initialization: {}", ex.getMessage(), ex);
+            log.warn("AI model init failed - using fallback mode only");
         }
+        
+        log.info("=====================================================");
     }
 
     public float predict(float scanCount, float timeVar, float locVar, float deviceCount) {
-        return predictDetailed(scanCount, timeVar, locVar, deviceCount).score();
+        return predictDetailed(scanCount, timeVar, locVar, deviceCount, 0f).score();
+    }
+
+    public float predict(float scanCount, float timeVar, float locVar, float deviceCount, float ipCount) {
+        return predictDetailed(scanCount, timeVar, locVar, deviceCount, ipCount).score();
     }
 
     public PredictionResult predictDetailed(float scanCount, float timeVar, float locVar, float deviceCount) {
+        return predictDetailed(scanCount, timeVar, locVar, deviceCount, 0f);
+    }
+
+    public PredictionResult predictDetailed(float scanCount, float timeVar, float locVar, float deviceCount, float ipCount) {
         if (session == null || env == null) {
-            float score = fallbackScore(scanCount, timeVar, locVar, deviceCount);
+            float score = fallbackScore(scanCount, timeVar, locVar, deviceCount, ipCount);
             return new PredictionResult(score, "fallback:no-session", "null");
         }
 
         try {
-            float[] input = {scanCount, timeVar, locVar, deviceCount};
+            float[] input = {scanCount, timeVar, locVar, deviceCount, ipCount};
             String inputName = resolveInputName(session.getInputNames());
-            try (OnnxTensor tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(input), new long[]{1, 4});
+            try (OnnxTensor tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(input), new long[]{1, 5});
                  OrtSession.Result res = session.run(Collections.singletonMap(inputName, tensor))) {
                 Object raw = res.get(0).getValue();
                 Float parsed = parseScore(raw);
@@ -77,13 +120,17 @@ public class AiRiskService {
                     return new PredictionResult(clamp01(parsed), "onnx", previewRaw(raw));
                 }
                 log.warn("ONNX output type is unsupported, fallback scoring will be used, rawType={}", raw == null ? "null" : raw.getClass().getName());
-                float score = fallbackScore(scanCount, timeVar, locVar, deviceCount);
+                float score = fallbackScore(scanCount, timeVar, locVar, deviceCount, ipCount);
                 return new PredictionResult(score, "fallback:unsupported-output", previewRaw(raw));
             }
+        } catch (OrtException e) {
+            log.warn("ONNX inference failed (OrtException): {}", e.getMessage());
+            float score = fallbackScore(scanCount, timeVar, locVar, deviceCount, ipCount);
+            return new PredictionResult(score, "fallback:ort-exception", e.getMessage());
         } catch (Exception e) {
-            log.warn("ONNX inference failed, fallback scoring will be used: {}", e.getMessage());
-            float score = fallbackScore(scanCount, timeVar, locVar, deviceCount);
-            return new PredictionResult(score, "fallback:onnx-exception", e.getClass().getSimpleName() + ":" + e.getMessage());
+            log.warn("ONNX inference failed (Exception): {}", e.getMessage());
+            float score = fallbackScore(scanCount, timeVar, locVar, deviceCount, ipCount);
+            return new PredictionResult(score, "fallback:exception", e.getClass().getSimpleName() + ":" + e.getMessage());
         }
     }
 
@@ -148,7 +195,6 @@ public class AiRiskService {
             return sigmoid(v);
         }
         if (v < 0f || v > 1f) {
-            // In auto mode, values outside [0,1] are very likely logits.
             return sigmoid(v);
         }
         return v;
@@ -161,7 +207,6 @@ public class AiRiskService {
         if (isProbMode()) {
             return false;
         }
-        // auto mode: if any value out of probability range, or sum isn't close to 1, treat as logits.
         float sum = 0f;
         for (float v : row) {
             if (v < 0f || v > 1f) {
@@ -196,9 +241,9 @@ public class AiRiskService {
         return (float) (1.0d / (1.0d + Math.exp(-x)));
     }
 
-    private float fallbackScore(float scanCount, float timeVar, float locVar, float deviceCount) {
-        float score = scanCount * 0.08f + timeVar * 0.2f + locVar * 0.3f + deviceCount * 0.1f;
-        return clamp01(score / 2f);
+    private float fallbackScore(float scanCount, float timeVar, float locVar, float deviceCount, float ipCount) {
+        float score = scanCount * 0.08f + timeVar * 0.2f + locVar * 0.3f + deviceCount * 0.1f + ipCount * 0.08f;
+        return clamp01(score / 2.5f);
     }
 
     private float clamp01(float value) {

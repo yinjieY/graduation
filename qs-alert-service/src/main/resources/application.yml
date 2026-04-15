@@ -5,6 +5,8 @@ spring:
     name: qs-alert-service
   profiles:
     active: dev
+  jmx:
+    enabled: false
   config:
     import: optional:nacos:qs-alert-service-${spring.profiles.active}.yml
   cloud:

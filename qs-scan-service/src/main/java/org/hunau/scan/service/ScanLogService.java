@@ -148,9 +148,10 @@ public class ScanLogService {
         int scanCount = reuseFeature == null ? scanCount1h : intValue(reuseFeature.get("scan_count"), scanCount1h);
         int deviceCount = reuseFeature == null ? deviceCount1d : intValue(reuseFeature.get("device_count"), deviceCount1d);
         int ipCount = reuseFeature == null ? ipCount1h : intValue(reuseFeature.get("ip_count"), ipCount1h);
+        double baseLocVar = log.isCrossRegionRisk() ? 1.0 : 0.05;
         double locationVariance = reuseFeature == null
-                ? (log.isCrossRegionRisk() ? 1.0 : 0.2)
-                : doubleValue(reuseFeature.get("location_variance"), 0.0);
+                ? baseLocVar
+                : Math.max(doubleValue(reuseFeature.get("location_variance"), 0.0), baseLocVar);
         double timeVariance = reuseFeature == null ? 0.5 : doubleValue(reuseFeature.get("time_variance"), 0.0);
 
         Map<String, Object> body = new HashMap<>();

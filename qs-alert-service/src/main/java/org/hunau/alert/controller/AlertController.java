@@ -3,6 +3,7 @@ package org.hunau.alert.controller;
 import org.hunau.alert.model.AdminActionNotificationRequest;
 import org.hunau.alert.model.AlertEvaluateRequest;
 import org.hunau.alert.model.FeedbackMessageRequest;
+import org.hunau.alert.model.RuleScoreWeightUpdateRequest;
 import org.hunau.alert.model.RuleStatusUpdateRequest;
 import org.hunau.alert.model.RuleThresholdUpdateRequest;
 import org.hunau.alert.service.AdminActionNotificationService;
@@ -83,6 +84,19 @@ public class AlertController {
         AssertUtil.notNull(request, "请求不能为空");
         AssertUtil.notEmpty(request.getThreshold(), "threshold不能为空");
         alertRuleEngineService.updateThreshold(ruleId, request.getThreshold().trim());
+        return R.ok(alertRuleEngineService.reloadNow());
+    }
+
+    @PutMapping("/rules/{ruleId}/weight")
+    public R<?> updateRuleScoreWeight(@PathVariable String ruleId,
+                                      @RequestBody RuleScoreWeightUpdateRequest request) {
+        AssertUtil.notEmpty(ruleId, "ruleId不能为空");
+        AssertUtil.notNull(request, "请求不能为空");
+        AssertUtil.notNull(request.getScoreWeight(), "scoreWeight不能为空");
+        if (request.getScoreWeight() < 0 || request.getScoreWeight() > 1) {
+            return R.fail("scoreWeight必须在0到1之间");
+        }
+        alertRuleEngineService.updateScoreWeight(ruleId, request.getScoreWeight());
         return R.ok(alertRuleEngineService.reloadNow());
     }
 

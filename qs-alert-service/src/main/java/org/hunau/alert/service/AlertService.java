@@ -65,24 +65,29 @@ public class AlertService {
                 req.getQsId(), req.getCompanyId(), scanCount1h, deviceCount1d, ipCount1h, locVar, timeVar, distanceKm, newDevice, riskDevice);
 
         RuleEngineResult ruleResult = alertRuleEngineService.evaluate(scanCount1h, deviceCount1d, ipCount1h);
-        double ruleScore = enrichRuleScore(ruleResult.ruleScore(), locVar, newDevice, riskDevice, distanceKm);
+        double ruleScore = ruleResult.ruleScore();
+        double enrichedRuleScore = ruleScore;
+        
+        if (ruleScore > 0) {
+            enrichedRuleScore = enrichRuleScore(ruleScore, locVar, newDevice, riskDevice, distanceKm);
+        }
         
         log.info("[风险评估] 阶段2/4 - 规则引擎: 命中规则={}, 命中原因={}, 基础分数={}, 增强后分数={}",
                 ruleResult.hitRuleIds(), 
                 ruleResult.hitReasons().isEmpty() ? "无" : ruleResult.hitReasons().get(0),
-                ruleResult.ruleScore(), ruleScore);
+                ruleScore, enrichedRuleScore);
 
-        AiRiskService.PredictionResult aiResult = aiRiskService.predictDetailed(scanCount1h, (float) timeVar, (float) locVar, deviceCount1d);
+        AiRiskService.PredictionResult aiResult = aiRiskService.predictDetailed(scanCount1h, (float) timeVar, (float) locVar, deviceCount1d, ipCount1h);
         float aiScore = aiResult.score();
         
         log.info("[风险评估] 阶段3/4 - AI模型: 评分={}, 模式={}, 原始输出={}", aiScore, aiResult.mode(), aiResult.rawPreview());
 
-        double score = Math.min(1.0, Math.max(0.0, aiScore * 0.6 + ruleScore * 0.4));
+        double score = Math.min(1.0, Math.max(0.0, aiScore * 0.6 + enrichedRuleScore * 0.4));
         RiskLevel level = decideLevel(score);
         
         log.info("[风险评估] 阶段4/4 - 融合计算: AI(60%)={}, 规则(40%)={}, 最终分数={}, 风险等级={}",
                 String.format("%.4f", aiScore * 0.6),
-                String.format("%.4f", ruleScore * 0.4),
+                String.format("%.4f", enrichedRuleScore * 0.4),
                 String.format("%.4f", score),
                 level.getDescription());
 
@@ -106,7 +111,7 @@ public class AlertService {
                 + ", aiMode=" + aiResult.mode()
                 + ", aiRaw=" + aiResult.rawPreview()
                 + ", aiScore=" + aiScore
-                + ", ruleScore=" + ruleScore
+                + ", ruleScore=" + enrichedRuleScore
                 + ", province=" + req.getProvince()
                 + ", city=" + req.getCity());
 
@@ -421,19 +426,44 @@ public class AlertService {
                              boolean riskDevice,
                              double distanceKm) {
         double score = ruleScore;
-        if (locVar >= 1.0) {
-            score += 0.20;
+        double totalBonus = 0.0;
+        
+        if (locVar >= 0.5) {
+            double locBonus = Math.min(0.15, locVar * 0.10);
+            totalBonus += locBonus;
+            log.debug("[规则增强] 位置方差={}, 增强分数={}", locVar, locBonus);
         }
-        if (distanceKm >= 100.0) {
-            score += 0.20;
+        
+        if (distanceKm >= 50.0) {
+            double distanceBonus = Math.min(0.15, (distanceKm / 1000.0) * 0.2);
+            if (distanceKm >= 200.0) {
+                distanceBonus += 0.05;
+            }
+            if (distanceKm >= 500.0) {
+                distanceBonus += 0.05;
+            }
+            distanceBonus = Math.min(0.25, distanceBonus);
+            totalBonus += distanceBonus;
+            log.debug("[规则增强] 跨区域距离={}km, 增强分数={}", distanceKm, distanceBonus);
         }
+        
         if (newDevice) {
-            score += 0.10;
+            totalBonus += 0.05;
+            log.debug("[规则增强] 新设备, 增强分数=0.05");
         }
+        
         if (riskDevice) {
-            score += 0.20;
+            totalBonus += 0.10;
+            log.debug("[规则增强] 风险设备, 增强分数=0.10");
         }
-        return Math.min(1.0, score);
+        
+        // 确保总增强不超过0.5
+        totalBonus = Math.min(0.5, totalBonus);
+        score += totalBonus;
+        
+        double finalScore = Math.min(1.0, score);
+        log.debug("[规则增强] 基础分数={}, 总增强={}, 增强后分数={}", ruleScore, totalBonus, finalScore);
+        return finalScore;
     }
 
     private RiskLevel decideLevel(double score) {
