@@ -86,22 +86,11 @@ public class RegisterService {
                 companyId
         );
 
-        String companyName = null;
-        if ("COMPANY".equals(role)) {
-            companyName = normalize(request.getCompanyName());
-            if (companyName.isEmpty()) {
-                companyName = username;
-            }
-            initPendingCompanyAuth(companyId, companyName, request.getRemark(), username);
-        }
-
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("username", username);
         data.put("phone", phone);
         data.put("role", role);
         data.put("companyId", companyId);
-        data.put("companyName", companyName);
-        data.put("reviewStatus", "COMPANY".equals(role) ? 0 : null);
         data.put("registered", true);
         return data;
     }

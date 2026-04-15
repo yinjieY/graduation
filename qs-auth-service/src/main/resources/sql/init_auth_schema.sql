@@ -15,6 +15,7 @@ USE `yx_company_auth`;
 
 -- Recreate tables from scratch (you said all old tables were removed;
 -- this keeps the script directly reusable).
+DROP TABLE IF EXISTS `company_auth_ext`;
 DROP TABLE IF EXISTS `company_auth`;
 DROP TABLE IF EXISTS `auth_user`;
 
@@ -60,6 +61,22 @@ CREATE TABLE `company_auth` (
   UNIQUE KEY `uk_company_auth_company_id` (`company_id`),
   KEY `idx_company_auth_review_status` (`review_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Company qualification review status';
+
+-- ------------------------------------------------------
+-- Step 2.5: Company auth extended info table
+-- ------------------------------------------------------
+CREATE TABLE `company_auth_ext` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'PK',
+  `company_id` VARCHAR(32) NOT NULL COMMENT 'Business company id',
+  `address` VARCHAR(255) DEFAULT NULL COMMENT '企业地址',
+  `contact_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+  `lat` DOUBLE DEFAULT NULL COMMENT '企业所在纬度',
+  `lng` DOUBLE DEFAULT NULL COMMENT '企业所在经度',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_company_auth_ext_company_id` (`company_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Company auth extended info';
 
 -- -------------------------------------------------
 -- Step 3: Seed company review data

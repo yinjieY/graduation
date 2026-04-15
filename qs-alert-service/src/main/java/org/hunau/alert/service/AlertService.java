@@ -61,12 +61,30 @@ public class AlertService {
         boolean riskDevice = Boolean.TRUE.equals(req.getRiskDevice());
         double distanceKm = Optional.ofNullable(req.getDistanceKm()).orElse(0.0);
 
+        log.info("[风险评估] 阶段1/4 - 输入特征: qsId={}, companyId={}, scanCount1h={}, deviceCount1d={}, ipCount1h={}, locVar={}, timeVar={}, distanceKm={}, newDevice={}, riskDevice={}",
+                req.getQsId(), req.getCompanyId(), scanCount1h, deviceCount1d, ipCount1h, locVar, timeVar, distanceKm, newDevice, riskDevice);
+
         RuleEngineResult ruleResult = alertRuleEngineService.evaluate(scanCount1h, deviceCount1d, ipCount1h);
         double ruleScore = enrichRuleScore(ruleResult.ruleScore(), locVar, newDevice, riskDevice, distanceKm);
+        
+        log.info("[风险评估] 阶段2/4 - 规则引擎: 命中规则={}, 命中原因={}, 基础分数={}, 增强后分数={}",
+                ruleResult.hitRuleIds(), 
+                ruleResult.hitReasons().isEmpty() ? "无" : ruleResult.hitReasons().get(0),
+                ruleResult.ruleScore(), ruleScore);
+
         AiRiskService.PredictionResult aiResult = aiRiskService.predictDetailed(scanCount1h, (float) timeVar, (float) locVar, deviceCount1d);
         float aiScore = aiResult.score();
+        
+        log.info("[风险评估] 阶段3/4 - AI模型: 评分={}, 模式={}, 原始输出={}", aiScore, aiResult.mode(), aiResult.rawPreview());
+
         double score = Math.min(1.0, Math.max(0.0, aiScore * 0.6 + ruleScore * 0.4));
         RiskLevel level = decideLevel(score);
+        
+        log.info("[风险评估] 阶段4/4 - 融合计算: AI(60%)={}, 规则(40%)={}, 最终分数={}, 风险等级={}",
+                String.format("%.4f", aiScore * 0.6),
+                String.format("%.4f", ruleScore * 0.4),
+                String.format("%.4f", score),
+                level.getDescription());
 
         AlertRecord record = new AlertRecord();
         record.setEventId(UUID.randomUUID().toString().replace("-", ""));

@@ -37,16 +37,19 @@ CREATE TABLE `company` (
                            `level` ENUM('特级','一级') DEFAULT '一级' COMMENT '企业资质等级',
                            `address` VARCHAR(255) NOT NULL COMMENT '企业生产经营地址',
                            `contact_phone` VARCHAR(20) NOT NULL COMMENT '企业联系电话（已脱敏）',
+                           `lat` DOUBLE NULL COMMENT '企业所在纬度（用于跨区域销售检测）',
+                           `lng` DOUBLE NULL COMMENT '企业所在经度（用于跨区域销售检测）',
                            `status` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '企业状态：1正常 0禁用',
                            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
-                           `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间'
+                           `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
+                           KEY `idx_company_location` (`lat`, `lng`) COMMENT '地理位置索引，加速跨区域检测'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '企业信息表';
 
 -- 1.6 插入企业测试数据
--- 说明：初始化两个测试企业，分别为特级和一级资质
-INSERT INTO `company` (`company_id`,`name`,`level`,`address`,`contact_phone`,`status`) VALUES
-                                                                                           ('C001','攸县老灶香干厂','特级','湖南株洲攸县','138****1234',1),
-                                                                                           ('C002','湘东豆制品有限公司','一级','湖南株洲攸县','139****5678',1);
+-- 说明：初始化两个测试企业，分别为特级和一级资质（湖南株洲攸县经纬度：27.03, 113.32）
+INSERT INTO `company` (`company_id`,`name`,`level`,`address`,`contact_phone`,`lat`,`lng`,`status`) VALUES
+                                                                                           ('C001','攸县老灶香干厂','特级','湖南株洲攸县','138****1234',27.03,113.32,1),
+                                                                                           ('C002','湘东豆制品有限公司','一级','湖南株洲攸县','139****5678',27.03,113.32,1);
 
 -- 1.7 创建产品生产批次表
 -- 用途：存储产品生产批次信息，关联企业信息，作为二维码生成的基础
@@ -340,6 +343,7 @@ CREATE DATABASE `yx_company_auth` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_
 USE `yx_company_auth`;
 
 -- 4.4 删除旧表（如果存在）
+DROP TABLE IF EXISTS `company_auth_ext`;
 DROP TABLE IF EXISTS `company_auth`;
 DROP TABLE IF EXISTS `auth_user`;
 
@@ -384,13 +388,34 @@ CREATE TABLE `company_auth` (
                                 KEY `idx_company_auth_review_status` (`review_status`) COMMENT '审核状态索引，加速按状态查询'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '企业资质认证审核表';
 
+-- 4.7 创建企业认证扩展信息表
+-- 用途：存储企业认证申请时提交的详细信息
+CREATE TABLE `company_auth_ext` (
+                                    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'PK',
+                                    `company_id` VARCHAR(32) NOT NULL COMMENT 'Business company id',
+                                    `address` VARCHAR(255) DEFAULT NULL COMMENT '企业地址',
+                                    `contact_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+                                    `lat` DOUBLE DEFAULT NULL COMMENT '企业所在纬度',
+                                    `lng` DOUBLE DEFAULT NULL COMMENT '企业所在经度',
+                                    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                    PRIMARY KEY (`id`),
+                                    UNIQUE KEY `uk_company_auth_ext_company_id` (`company_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Company auth extended info';
+
 -- 4.7 插入企业认证测试数据
 -- 说明：创建两条测试企业认证记录，一条已通过，一条待审核
 INSERT INTO `company_auth` (`company_id`,`company_name`,`review_status`,`apply_by`,`apply_time`,`review_by`,`review_time`,`remark`) VALUES
                                                                                                                 ('C001','攸县老灶香干厂',1,'admin001',NOW(),'admin001',NOW(),'Initialized as approved'),
                                                                                                                 ('C002','湘东豆制品有限公司',0,'company01',NOW(),NULL,NULL,'Initialized as not approved');
 
--- 4.8 插入系统用户测试数据
+-- 4.8 插入企业认证扩展信息测试数据
+-- 说明：为测试企业添加地址、联系电话和经纬度信息
+INSERT INTO `company_auth_ext` (`company_id`,`address`,`contact_phone`,`lat`,`lng`) VALUES
+                                                                                     ('C001','湖南株洲攸县','138****1234',27.03,113.32),
+                                                                                     ('C002','湖南株洲攸县','139****5678',27.03,113.32);
+
+-- 4.9 插入系统用户测试数据
 -- 说明：创建三个测试用户，分别为管理员、企业用户和消费者用户
 -- initial password: password
 -- bcrypt: $2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa

@@ -57,17 +57,6 @@
             />
             <div v-if="errors.password" class="error-message">{{ errors.password }}</div>
           </div>
-          <div class="form-group">
-            <label for="companyName">企业名称</label>
-            <input 
-              id="companyName"
-              v-model="form.companyName" 
-              placeholder="请输入企业名称" 
-              @blur="validateField('companyName')"
-              :class="{ 'invalid': errors.companyName }"
-            />
-            <div v-if="errors.companyName" class="error-message">{{ errors.companyName }}</div>
-          </div>
         </form>
 
         <div class="auth-actions">
@@ -94,8 +83,8 @@ const router = useRouter();
 const loading = ref(false);
 const notice = ref('');
 const noticeType = ref('info');
-const form = reactive({ username: '', phone: '', email: '', password: '', role: 'COMPANY', companyName: '' });
-const errors = reactive({ username: '', phone: '', email: '', password: '', companyName: '' });
+const form = reactive({ username: '', phone: '', email: '', password: '', role: 'COMPANY' });
+const errors = reactive({ username: '', phone: '', email: '', password: '' });
 
 function setNotice(message, type = 'info') {
   notice.value = message;
@@ -143,15 +132,6 @@ function validateField(field) {
         errors.password = '密码长度至少6位';
       } else {
         errors.password = '';
-      }
-      break;
-    case 'companyName':
-      if (!form.companyName.trim()) {
-        errors.companyName = '请输入企业名称';
-      } else if (form.companyName.length < 2) {
-        errors.companyName = '企业名称长度至少2位';
-      } else {
-        errors.companyName = '';
       }
       break;
   }

@@ -49,7 +49,7 @@ public class ReusePatternScheduler {
                 SELECT
                     s.qs_id,
                     COUNT(*) AS scan_count,
-                    COALESCE(VAR_POP(TIMESTAMPDIFF(SECOND, '1970-01-01 00:00:00', s.scan_time)), 0) AS time_variance,
+                    COALESCE(VAR_POP(TIMESTAMPDIFF(HOUR, '1970-01-01 00:00:00', s.scan_time)), 0) AS time_variance,
                     COALESCE(VAR_POP(s.lat), 0) + COALESCE(VAR_POP(s.lng), 0) AS location_variance,
                     COUNT(DISTINCT s.device_fingerprint) AS device_count,
                     COUNT(DISTINCT s.ip_masked) AS ip_count,

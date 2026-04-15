@@ -70,11 +70,31 @@ public class CompanyAuthController {
                                         @RequestHeader(value = "Authorization", required = false) String authorization) {
         String companyId = resolveApplyCompanyId(request, authentication, authorization);
         String companyName = normalize(request.getCompanyName());
+        String address = normalize(request.getAddress());
+        String contactPhone = normalize(request.getContactPhone());
+        Double lat = request.getLat();
+        Double lng = request.getLng();
+        
         if (companyName.isEmpty()) {
-            return R.fail("companyName 不能为空");
+            return R.fail("企业名称不能为空");
         }
-        Map<String, Object> data = companyAuthService.submit(companyId, companyName, request.getRemark());
-        return R.ok(data);
+        if (address.isEmpty()) {
+            return R.fail("企业地址不能为空");
+        }
+        if (contactPhone.isEmpty()) {
+            return R.fail("联系电话不能为空");
+        }
+        if (lat == null || lng == null) {
+            return R.fail("请填写企业地理位置信息（经纬度）");
+        }
+        
+        try {
+            companyAuthService.saveCompanyExtInfo(companyId, address, contactPhone, lat, lng);
+            Map<String, Object> data = companyAuthService.submit(companyId, companyName, request.getRemark());
+            return R.ok(data);
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        }
     }
 
     @GetMapping("/pending")

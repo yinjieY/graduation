@@ -41,9 +41,34 @@ public class CompanyServiceImpl implements CompanyService {
         Company existed = companyMapper.selectById(request.getCompanyId());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("companyId", request.getCompanyId());
+        
         if (existed != null) {
+            boolean updated = false;
+            
+            if (request.getLat() != null && !request.getLat().equals(existed.getLat())) {
+                existed.setLat(request.getLat());
+                updated = true;
+            }
+            if (request.getLng() != null && !request.getLng().equals(existed.getLng())) {
+                existed.setLng(request.getLng());
+                updated = true;
+            }
+            if (request.getAddress() != null && !request.getAddress().isBlank() && !request.getAddress().equals(existed.getAddress())) {
+                existed.setAddress(request.getAddress());
+                updated = true;
+            }
+            if (request.getContactPhone() != null && !request.getContactPhone().isBlank() && !request.getContactPhone().equals(existed.getContactPhone())) {
+                existed.setContactPhone(request.getContactPhone());
+                updated = true;
+            }
+            
+            if (updated) {
+                companyMapper.updateById(existed);
+            }
+            
             result.put("created", false);
             result.put("alreadyExists", true);
+            result.put("updated", updated);
             result.put("company", existed);
             return R.ok(result);
         }
@@ -54,11 +79,14 @@ public class CompanyServiceImpl implements CompanyService {
         company.setLevel(request.getLevel() == null || request.getLevel().isBlank() ? "一级" : request.getLevel());
         company.setAddress(request.getAddress() == null || request.getAddress().isBlank() ? "待完善" : request.getAddress());
         company.setContactPhone(request.getContactPhone() == null || request.getContactPhone().isBlank() ? "待完善" : request.getContactPhone());
+        company.setLat(request.getLat());
+        company.setLng(request.getLng());
         company.setStatus(request.getStatus() == null ? 1 : request.getStatus());
 
         companyMapper.insert(company);
         result.put("created", true);
         result.put("alreadyExists", false);
+        result.put("updated", false);
         result.put("company", company);
         return R.ok(result);
     }

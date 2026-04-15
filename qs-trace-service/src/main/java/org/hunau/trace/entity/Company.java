@@ -24,6 +24,10 @@ public class Company {
     @TableField("contact_phone")
     private String contactPhone;
 
+    private Double lat;
+
+    private Double lng;
+
     private Integer status;
 
     @TableField("created_at")

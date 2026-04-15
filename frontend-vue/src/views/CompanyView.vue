@@ -3,7 +3,7 @@
     <div class="dashboard">
       <div class="dashboard-header">
         <h1 class="page-title">商家工作台</h1>
-        <p class="page-subtitle">企业认证申请、系统消息与反馈查看</p>
+        <p class="page-subtitle">系统消息与消费者反馈查看</p>
       </div>
 
       <div v-if="notice" class="status-line" :class="{ error: noticeType === 'error', success: noticeType === 'success' }">
@@ -11,25 +11,6 @@
       </div>
 
       <div class="dashboard-cards">
-        <div class="card">
-          <div class="card-header">
-            <h3>企业认证申请</h3>
-          </div>
-          <div class="form-group">
-            <input v-model="applyForm.companyName" placeholder="企业名称" />
-            <input v-model="applyForm.remark" placeholder="申请备注" />
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" :disabled="loading" @click="onApply">提交申请</button>
-            <button class="btn-secondary" :disabled="loading" @click="onQueryStatus">查询认证状态</button>
-          </div>
-          <div class="status-info">
-            状态：<span :class="{ 'status-pending': statusText.includes('PENDING'), 'status-approved': statusText.includes('APPROVED') }">
-              {{ statusText }}
-            </span>
-          </div>
-        </div>
-
         <div class="card">
           <div class="card-header">
             <h3>系统消息</h3>
@@ -94,10 +75,9 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { getMessages } from '../api/alert';
 import { getFeedbackList } from '../api/feedback';
-import { queryCompanyStatus, submitCompanyApply } from '../api/auth';
 import { clearToken, getToken } from '../api/session';
 import { useRouter } from 'vue-router';
 import Layout from '../components/Layout.vue';
@@ -107,19 +87,8 @@ const token = ref(getToken('company'));
 const loading = ref(false);
 const notice = ref('');
 const noticeType = ref('info');
-const applyForm = reactive({ companyName: '', remark: '' });
-const statusText = ref('未查询');
 const messages = ref([]);
 const feedbacks = ref([]);
-
-function getCurrentCompanyId() {
-  try {
-    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
-    return String(userInfo.companyId || '').trim();
-  } catch (error) {
-    return '';
-  }
-}
 
 function setNotice(message, type = 'info') {
   notice.value = message;
@@ -146,39 +115,6 @@ async function withLoading(task, successMessage = '') {
   } finally {
     loading.value = false;
   }
-}
-
-async function onApply() {
-  await withLoading(async () => {
-    // 获取当前用户的 companyId
-    const companyId = getCurrentCompanyId();
-    // 构建包含 companyId 的请求体
-    const requestData = {
-      ...applyForm,
-      companyId: companyId
-    };
-    const res = await submitCompanyApply(requestData, token.value);
-    if (res.code === 200 && res.data) {
-      statusText.value = res.data.statusText || 'PENDING';
-    } else {
-      throw new Error(res.msg || '认证申请提交失败');
-    }
-  }, '认证申请已提交');
-}
-
-async function onQueryStatus() {
-  await withLoading(async () => {
-    const companyId = getCurrentCompanyId();
-    if (!companyId) {
-      throw new Error('当前账号未绑定 companyId，请联系管理员');
-    }
-    const res = await queryCompanyStatus(companyId, token.value, { noCache: true });
-    if (res.code === 200 && res.data) {
-      statusText.value = res.data.statusText || '';
-    } else {
-      throw new Error(res.msg || '查询认证状态失败');
-    }
-  });
 }
 
 async function loadMessages() {
@@ -214,13 +150,6 @@ async function loadFeedbacks() {
 onMounted(async () => {
   await withLoading(async () => {
     await Promise.all([loadMessages(), loadFeedbacks()]);
-    const companyId = getCurrentCompanyId();
-    if (companyId) {
-      const res = await queryCompanyStatus(companyId, token.value);
-      if (res.code === 200 && res.data) {
-        statusText.value = res.data.statusText || '';
-      }
-    }
   });
 });
 </script>
@@ -331,86 +260,6 @@ onMounted(async () => {
   100% { transform: rotate(360deg); }
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.form-group input {
-  padding: 12px 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.btn-primary {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  background: #3b82f6;
-  color: white;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.btn-secondary {
-  padding: 10px 20px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: white;
-  color: #64748b;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.status-info {
-  font-size: 14px;
-  color: #64748b;
-}
-
-.status-pending {
-  color: #f59e0b;
-  font-weight: 600;
-}
-
-.status-approved {
-  color: #10b981;
-  font-weight: 600;
-}
-
 .table-wrapper {
   overflow-x: auto;
 }
@@ -471,14 +320,6 @@ td {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
-  }
-  
-  .form-actions {
-    flex-direction: column;
-  }
-  
-  .form-actions button {
-    width: 100%;
   }
 }
 </style>

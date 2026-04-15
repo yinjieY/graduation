@@ -10,6 +10,8 @@ import org.hunau.scan.client.TraceFeignClient;
 import org.hunau.scan.model.DeviceProfile;
 import org.hunau.scan.model.ScanLog;
 import org.hunau.scan.model.ScanRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -21,7 +23,8 @@ import java.util.*;
 @Service
 public class ScanLogService {
 
-    private static final double CROSS_REGION_THRESHOLD_KM = 100.0;
+    private static final Logger log = LoggerFactory.getLogger(ScanLogService.class);
+    private static final double CROSS_REGION_THRESHOLD_KM = 600.0;
 
     @Value("${app.crypto.sm2.public-key:TRACE_PRIVATE_KEY}")
     private String sm2PublicKey;
@@ -180,11 +183,53 @@ public class ScanLogService {
     }
 
     private double calcDistanceKm(ScanRequest req) {
-        if (req.getLatitude() == null || req.getLongitude() == null
-                || req.getExpectedLatitude() == null || req.getExpectedLongitude() == null) {
+        if (req.getLatitude() == null || req.getLongitude() == null) {
+            log.info("[跨区域检测] 扫码位置为空(lat={}, lng={})，跳过距离计算", req.getLatitude(), req.getLongitude());
             return 0.0;
         }
-        return GeoUtil.distanceKm(req.getLatitude(), req.getLongitude(), req.getExpectedLatitude(), req.getExpectedLongitude());
+
+        Double expectedLat = req.getExpectedLatitude();
+        Double expectedLng = req.getExpectedLongitude();
+
+        log.info("[跨区域检测] 阶段1/3 - 扫码位置: lat={}, lng={}", req.getLatitude(), req.getLongitude());
+
+        if (expectedLat == null || expectedLng == null) {
+            Map<String, Double> location = queryCompanyLocation(req.getCompanyId());
+            expectedLat = location.get("lat");
+            expectedLng = location.get("lng");
+            log.info("[跨区域检测] 阶段2/3 - 从数据库查询企业位置: companyId={}, lat={}, lng={}", req.getCompanyId(), expectedLat, expectedLng);
+        } else {
+            log.info("[跨区域检测] 阶段2/3 - 使用请求中的预期位置: lat={}, lng={}", expectedLat, expectedLng);
+        }
+
+        if (expectedLat == null || expectedLng == null) {
+            log.warn("[跨区域检测] 阶段2/3 - 企业位置为空，无法计算距离");
+            return 0.0;
+        }
+
+        double distance = GeoUtil.distanceKm(req.getLatitude(), req.getLongitude(), expectedLat, expectedLng);
+        boolean isCrossRegion = distance > CROSS_REGION_THRESHOLD_KM;
+        log.info("[跨区域检测] 阶段3/3 - 计算完成: 距离={}km, 阈值={}km, 跨区域风险={}", distance, CROSS_REGION_THRESHOLD_KM, isCrossRegion);
+
+        return distance;
+    }
+
+    private Map<String, Double> queryCompanyLocation(String companyId) {
+        if (companyId == null || companyId.isBlank()) {
+            return Map.of("lat", null, "lng", null);
+        }
+        try {
+            Map<String, Object> result = jdbcTemplate.queryForMap(
+                    "SELECT lat, lng FROM yx_trace_core.company WHERE company_id = ?",
+                    companyId
+            );
+            return Map.of(
+                    "lat", result.get("lat") != null ? ((Number) result.get("lat")).doubleValue() : null,
+                    "lng", result.get("lng") != null ? ((Number) result.get("lng")).doubleValue() : null
+            );
+        } catch (Exception e) {
+            return Map.of("lat", null, "lng", null);
+        }
     }
 
     private String normalize(String value) {

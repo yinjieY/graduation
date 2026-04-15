@@ -59,6 +59,12 @@ public class ProductBatchServiceImpl implements ProductBatchService {
         if (!Integer.valueOf(1).equals(company.getStatus())) {
             throw new BusinessException("企业状态不可用，无法创建批次");
         }
+        if (company.getAddress() == null || company.getAddress().isBlank()) {
+            throw new BusinessException("请先完善企业地址信息");
+        }
+        if (company.getLat() == null || company.getLng() == null) {
+            throw new BusinessException("请先完善企业地理位置信息（经纬度）");
+        }
 
         if (batch.getBatchId() == null || batch.getBatchId().isBlank()) {
             batch.setBatchId(generateBatchId());

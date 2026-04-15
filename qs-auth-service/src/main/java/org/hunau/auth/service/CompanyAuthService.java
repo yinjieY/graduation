@@ -85,30 +85,9 @@ public class CompanyAuthService {
             throw new IllegalArgumentException("companyName 不能为空");
         }
 
-        // 检查是否已经存在审核记录
-        String sql = "SELECT review_status, remark FROM company_auth WHERE company_id = ? LIMIT 1";
-        Map<String, Object> existingRecord = jdbcTemplate.query(sql, rs -> {
-            if (!rs.next()) {
-                return null;
-            }
-            Map<String, Object> record = new HashMap<>();
-            record.put("reviewStatus", rs.getInt("review_status"));
-            record.put("remark", rs.getString("remark"));
-            return record;
-        }, normalizedCompanyId);
-
-        if (existingRecord != null) {
-            int currentStatus = (Integer) existingRecord.get("reviewStatus");
-            String existingRemark = (String) existingRecord.get("remark");
-            
-            if (currentStatus == STATUS_APPROVED) {
-                throw new IllegalArgumentException("企业已审核通过，不能重复申请");
-            }
-            
-            // 只有当状态为 PENDING 且不是注册自动创建的记录时，才阻止重复提交
-            if (currentStatus == STATUS_PENDING && !"register auto created".equals(existingRemark)) {
-                throw new IllegalArgumentException("企业认证申请正在审核中，请勿重复提交");
-            }
+        Integer currentStatus = getReviewStatus(normalizedCompanyId);
+        if (currentStatus != null && currentStatus == STATUS_PENDING) {
+            throw new IllegalArgumentException("企业认证申请正在审核中，请勿重复提交");
         }
         
         String normalizedApplicant = normalize(resolveApplicant());
@@ -210,6 +189,26 @@ public class CompanyAuthService {
         Map<String, Object> body = new HashMap<>();
         body.put("companyId", companyId);
         body.put("name", companyName);
+        
+        String sql = "SELECT address, contact_phone, lat, lng FROM company_auth_ext WHERE company_id = ? LIMIT 1";
+        Map<String, Object> extInfo = jdbcTemplate.query(sql, rs -> {
+            if (!rs.next()) {
+                return null;
+            }
+            Map<String, Object> info = new HashMap<>();
+            info.put("address", rs.getString("address"));
+            info.put("contactPhone", rs.getString("contact_phone"));
+            info.put("lat", rs.getDouble("lat"));
+            info.put("lng", rs.getDouble("lng"));
+            return info;
+        }, companyId);
+        
+        if (extInfo != null) {
+            body.put("address", extInfo.get("address"));
+            body.put("contactPhone", extInfo.get("contactPhone"));
+            body.put("lat", extInfo.get("lat"));
+            body.put("lng", extInfo.get("lng"));
+        }
 
         try {
             R<Map<String, Object>> resp = traceFeignClient.initCompany(body);
@@ -222,6 +221,24 @@ public class CompanyAuthService {
             reviewData.put("traceInitSuccess", false);
             reviewData.put("traceInitMsg", "trace init exception: " + ex.getMessage());
         }
+    }
+    
+    public void saveCompanyExtInfo(String companyId, String address, String contactPhone, Double lat, Double lng) {
+        String normalizedCompanyId = normalize(companyId);
+        if (normalizedCompanyId.isEmpty()) {
+            throw new IllegalArgumentException("companyId 不能为空");
+        }
+        
+        String sql = """
+                INSERT INTO company_auth_ext(company_id, address, contact_phone, lat, lng)
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    address = VALUES(address),
+                    contact_phone = VALUES(contact_phone),
+                    lat = VALUES(lat),
+                    lng = VALUES(lng)
+                """;
+        jdbcTemplate.update(sql, normalizedCompanyId, normalize(address), normalize(contactPhone), lat, lng);
     }
 
     public List<Map<String, Object>> pendingList() {

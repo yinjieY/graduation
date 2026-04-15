@@ -9,6 +9,8 @@ public class InitCompanyRequest {
     private String level;
     private String address;
     private String contactPhone;
+    private Double lat;
+    private Double lng;
     private Integer status;
 }
 
