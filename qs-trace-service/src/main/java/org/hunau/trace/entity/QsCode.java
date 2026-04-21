@@ -1,6 +1,7 @@
 package org.hunau.trace.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import org.hunau.common.enums.RiskLevel;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -43,4 +44,7 @@ public class QsCode {
 
     @TableField("updated_at")
     private LocalDateTime updatedAt;
+
+    @TableField(exist = false)
+    private RiskLevel riskLevel;
 }

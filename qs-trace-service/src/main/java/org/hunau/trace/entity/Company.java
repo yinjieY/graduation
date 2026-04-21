@@ -24,6 +24,8 @@ public class Company {
     @TableField("contact_phone")
     private String contactPhone;
 
+    private String email;
+
     private Double lat;
 
     private Double lng;

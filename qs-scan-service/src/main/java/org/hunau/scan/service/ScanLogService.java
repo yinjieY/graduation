@@ -45,10 +45,12 @@ public class ScanLogService {
         AssertUtil.notEmpty(req.getSignaturePayload(), "签名载荷不能为空");
         AssertUtil.notEmpty(req.getSignature(), "签名不能为空");
 
-        String qrAvailableMsg = validateQrAvailable(req);
+        Map<String, Object> qrInfo = validateQrAvailable(req);
+        String qrAvailableMsg = (String) qrInfo.get("error");
         if (qrAvailableMsg != null) {
             return R.fail(qrAvailableMsg);
         }
+        Integer maxAllowedScans = (Integer) qrInfo.get("maxAllowedScans");
 
         String payloadCheckMsg = checkPayloadConsistency(req);
         if (payloadCheckMsg != null) {
@@ -87,12 +89,16 @@ public class ScanLogService {
         result.put("scanLog", log);
         
         try {
-            Map<String, Object> evaluationResult = pushAlertEvaluate(log);
+            Map<String, Object> evaluationResult = pushAlertEvaluate(log, profile, maxAllowedScans);
             if (evaluationResult != null) {
                 result.put("riskEvaluation", evaluationResult);
+                ScanLogService.log.info("[扫描上报] 风险评估成功: riskLevel={}, riskScore={}", 
+                        evaluationResult.get("riskLevel"), evaluationResult.get("riskScore"));
+            } else {
+                ScanLogService.log.warn("[扫描上报] 风险评估返回空结果");
             }
         } catch (Exception e) {
-            // Alert service is eventually consistent; scan flow should not fail.
+            ScanLogService.log.warn("[扫描上报] 风险评估异常: {}", e.getMessage());
         }
         
         return R.ok(result);
@@ -139,7 +145,7 @@ public class ScanLogService {
         return profile;
     }
 
-    private Map<String, Object> pushAlertEvaluate(ScanLog log) {
+    private Map<String, Object> pushAlertEvaluate(ScanLog log, DeviceProfile profile, Integer maxAllowedScans) {
         Map<String, Object> reuseFeature = loadReuseFeature(log.getQsId());
         int scanCount1h = countRecentScans(log.getQsId(), 60);
         int deviceCount1d = countRecentDevice(log.getQsId(), 1440);
@@ -148,11 +154,11 @@ public class ScanLogService {
         int scanCount = reuseFeature == null ? scanCount1h : intValue(reuseFeature.get("scan_count"), scanCount1h);
         int deviceCount = reuseFeature == null ? deviceCount1d : intValue(reuseFeature.get("device_count"), deviceCount1d);
         int ipCount = reuseFeature == null ? ipCount1h : intValue(reuseFeature.get("ip_count"), ipCount1h);
-        double baseLocVar = log.isCrossRegionRisk() ? 1.0 : 0.05;
+        double baseLocVar = log.isCrossRegionRisk() ? 1.0 : 0.04;
         double locationVariance = reuseFeature == null
                 ? baseLocVar
-                : Math.max(doubleValue(reuseFeature.get("location_variance"), 0.0), baseLocVar);
-        double timeVariance = reuseFeature == null ? 0.5 : doubleValue(reuseFeature.get("time_variance"), 0.0);
+                : doubleValue(reuseFeature.get("location_variance"), baseLocVar);
+        double timeVariance = reuseFeature == null ? 0.04 : doubleValue(reuseFeature.get("time_variance"), 0.0);
 
         Map<String, Object> body = new HashMap<>();
         body.put("qsId", log.getQsId());
@@ -169,16 +175,21 @@ public class ScanLogService {
         body.put("newDevice", log.isNewDevice());
         body.put("riskDevice", log.isRiskDevice());
         body.put("distanceKm", log.getDistanceKm());
+        body.put("deviceScanCount", profile.getScanCount());
+        body.put("maxAllowedScans", maxAllowedScans);
         body.put("city", null);
         body.put("province", null);
         
         try {
             R<?> response = alertFeignClient.evaluate(body);
             if (response != null && response.getCode() == 200 && response.getData() != null) {
-                return (Map<String, Object>) response.getData();
+                Map<String, Object> result = (Map<String, Object>) response.getData();
+                ScanLogService.log.info("[扫描上报] 风险评估结果: riskLevel={}, riskScore={}", 
+                        result.get("riskLevel"), result.get("riskScore"));
+                return result;
             }
-        } catch (Exception ignored) {
-            // Alert service is eventually consistent; scan flow should not fail.
+        } catch (Exception e) {
+            ScanLogService.log.warn("[扫描上报] 风险评估调用失败: {}", e.getMessage());
         }
         return null;
     }
@@ -375,28 +386,35 @@ public class ScanLogService {
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 
-    private String validateQrAvailable(ScanRequest req) {
+    private Map<String, Object> validateQrAvailable(ScanRequest req) {
+        Map<String, Object> result = new HashMap<>();
+        
         R<Map<String, Object>> resp;
         try {
             resp = traceFeignClient.queryTrace(req.getQsId());
         } catch (Exception ex) {
-            return "二维码状态校验失败：溯源服务调用异常";
+            result.put("error", "二维码状态校验失败：溯源服务调用异常");
+            return result;
         }
         if (resp == null) {
-            return "二维码状态校验失败：溯源服务无响应";
+            result.put("error", "二维码状态校验失败：溯源服务无响应");
+            return result;
         }
         if (resp.getCode() != 200 || resp.getData() == null) {
-            return "二维码不可用：" + (resp.getMsg() == null ? "查询失败" : resp.getMsg());
+            result.put("error", "二维码不可用：" + (resp.getMsg() == null ? "查询失败" : resp.getMsg()));
+            return result;
         }
 
         Object qsCodeRaw = resp.getData().get("qsCode");
         if (!(qsCodeRaw instanceof Map<?, ?> qsCodeMap)) {
-            return "二维码状态校验失败：溯源返回格式异常";
+            result.put("error", "二维码状态校验失败：溯源返回格式异常");
+            return result;
         }
 
         String status = stringValue(qsCodeMap.get("status"));
         if (!"active".equalsIgnoreCase(status)) {
-            return "二维码不可用：当前状态为 " + (status == null ? "unknown" : status);
+            result.put("error", "二维码不可用：当前状态为 " + (status == null ? "unknown" : status));
+            return result;
         }
 
         String batchId = stringValue(qsCodeMap.get("batchId"));
@@ -409,6 +427,8 @@ public class ScanLogService {
         }
 
         Integer maxAllowedScans = intValue(qsCodeMap.get("maxAllowedScans"));
+        result.put("maxAllowedScans", maxAllowedScans);
+        
         if (maxAllowedScans != null && maxAllowedScans > 0) {
             int scanned = countTotalScans(req.getQsId());
             int freezeThreshold = maxAllowedScans * 3;
@@ -418,10 +438,11 @@ public class ScanLogService {
                     body.put("status", "frozen");
                     traceFeignClient.changeStatus(req.getQsId(), body);
                 } catch (Exception ignored) {}
-                return "二维码不可用：扫码次数异常，已冻结(" + scanned + "/" + freezeThreshold + ")";
+                result.put("error", "二维码不可用：扫码次数异常，已冻结(" + scanned + "/" + freezeThreshold + ")");
+                return result;
             }
         }
-        return null;
+        return result;
     }
 
     private String stringValue(Object value) {

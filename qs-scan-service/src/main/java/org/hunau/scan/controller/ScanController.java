@@ -36,9 +36,8 @@ public class ScanController {
         Map<String, Object> data = new HashMap<>();
         data.put("affectedRows", summary.affectedRows());
         data.put("snapshotTime", summary.snapshotTime());
-        data.put("lookbackMinutes", summary.lookbackMinutes());
-        data.put("minUpdateGapSeconds", summary.minUpdateGapSeconds());
         data.put("scanUpdateLagSeconds", summary.scanUpdateLagSeconds());
+        data.put("isFullCalibration", summary.isFullCalibration());
         data.put("message", "reuse_pattern聚合已触发");
         return R.ok(data);
     }

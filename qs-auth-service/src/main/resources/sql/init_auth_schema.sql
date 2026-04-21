@@ -26,6 +26,7 @@ CREATE TABLE `auth_user` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'PK',
   `username` VARCHAR(64) NOT NULL COMMENT 'Login username',
   `phone` VARCHAR(20) NOT NULL COMMENT 'Login mobile phone',
+  `email` VARCHAR(100) DEFAULT NULL COMMENT 'User email for notifications',
   `password_hash` VARCHAR(255) NOT NULL COMMENT 'BCrypt encoded password',
   `role` VARCHAR(32) NOT NULL COMMENT 'ADMIN/COMPANY/CONSUMER/SERVICE',
   `company_id` VARCHAR(32) DEFAULT NULL COMMENT 'Bound company for COMPANY role',
@@ -70,6 +71,7 @@ CREATE TABLE `company_auth_ext` (
   `company_id` VARCHAR(32) NOT NULL COMMENT 'Business company id',
   `address` VARCHAR(255) DEFAULT NULL COMMENT '企业地址',
   `contact_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+  `email` VARCHAR(100) DEFAULT NULL COMMENT '企业邮箱（用于接收预警通知）',
   `lat` DOUBLE DEFAULT NULL COMMENT '企业所在纬度',
   `lng` DOUBLE DEFAULT NULL COMMENT '企业所在经度',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -92,11 +94,11 @@ VALUES
 -- Initial password for all users below: password
 -- BCrypt hash value (password):
 -- $2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa
-INSERT INTO `auth_user` (`username`, `phone`, `password_hash`, `role`, `company_id`, `status`, `deleted`)
+INSERT INTO `auth_user` (`username`, `phone`, `email`, `password_hash`, `role`, `company_id`, `status`, `deleted`)
 VALUES
-  ('admin001',  '13800000001', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'ADMIN',    NULL,   1, 0),
-  ('company01', '13800000002', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'COMPANY',  'C001', 1, 0),
-  ('consumer01','13800000003', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'CONSUMER', NULL,   1, 0);
+  ('admin001',  '13800000001', 'admin@example.com', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'ADMIN',    NULL,   1, 0),
+  ('company01', '13800000002', 'company01@laozao.com', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'COMPANY',  'C001', 1, 0),
+  ('consumer01','1380000003', 'consumer01@example.com', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'CONSUMER', NULL,   1, 0);
 
 SET FOREIGN_KEY_CHECKS = 1;
 

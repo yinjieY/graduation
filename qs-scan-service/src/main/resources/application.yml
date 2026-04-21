@@ -30,13 +30,10 @@ app:
     alert-service-url: http://localhost:9094
   feature:
     reuse:
-      # production建议改为86400000(1天)；测试阶段默认2分钟
-      refresh-ms: 120000
-      initial-delay-ms: 15000
-      lookback-minutes: 1440
-      # 防止任务执行时读到“正在写入”的扫码记录，默认回退2秒作为快照边界
-      scan-update-lag-seconds: 2
-      # latest_scan_time - update_time 超过该阈值才更新，避免边界时刻重复刷新
-      min-update-gap-seconds: 1
+      refresh-ms: 120000           # 增量统计刷新间隔（毫秒），测试环境2分钟，生产环境建议300000(5分钟)
+      initial-delay-ms: 10000       # 启动后延迟执行时间（毫秒）
+      scan-update-lag-seconds: 2    # 快照回退秒数，防止读到"正在写入"的记录
+      full-calibration-hour: 3      # 全量校准模式判断小时（配合refresh-ms使用）
+      daily-calibration-cron: "0 0 3 * * ?"  # 每日全量校准定时任务（凌晨3点）
   integration:
     alert-evaluate-url: http://localhost:9094/alert/evaluate

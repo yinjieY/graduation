@@ -8,7 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.FloatBuffer;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -20,6 +23,7 @@ public class AiRiskService {
 
     private OrtEnvironment env;
     private OrtSession session;
+    private final FeatureNormalizer normalizer;
 
     @Value("${app.ai.positive-class-index:1}")
     private int positiveClassIndex;
@@ -27,9 +31,16 @@ public class AiRiskService {
     @Value("${app.ai.output-kind:auto}")
     private String outputKind;
 
+    @Value("${app.ai.model-path:}")
+    private String modelPath;
+
     private volatile boolean modelLoaded;
 
     public record PredictionResult(float score, String mode, String rawPreview) {}
+
+    public AiRiskService(FeatureNormalizer normalizer) {
+        this.normalizer = normalizer;
+    }
 
     @PostConstruct
     public void init() {
@@ -39,25 +50,9 @@ public class AiRiskService {
             log.info("Step 1/3: Creating ONNX environment...");
             env = OrtEnvironment.getEnvironment();
             log.info("✓ ONNX environment created successfully");
-            
             log.info("Step 2/3: Loading model resource...");
-            String resourcePath = "qs_risk_model.onnx";
-            InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath);
-            
-            if (is == null) {
-                log.error("✗ AI model not found in classpath: {}", resourcePath);
-                log.error("  - Please verify the file exists in: src/main/resources/");
-                modelLoaded = false;
-                log.warn("AI model init failed - using fallback mode only");
-                return;
-            }
-            
-            log.info("✓ Model resource found, reading bytes...");
-            byte[] modelBytes = is.readAllBytes();
-            log.info("✓ Model bytes read: {} KB", modelBytes.length / 1024);
-            
             log.info("Step 3/3: Creating ONNX session...");
-            session = env.createSession(modelBytes);
+            session = createSession();
             modelLoaded = true;
             
             Set<String> inputNames = session.getInputNames();
@@ -91,6 +86,38 @@ public class AiRiskService {
         log.info("=====================================================");
     }
 
+    private OrtSession createSession() throws Exception {
+        if (modelPath != null && !modelPath.isBlank()) {
+            String configuredPath = modelPath.trim();
+            log.info("Using configured AI model path: {}", configuredPath);
+            return env.createSession(configuredPath);
+        }
+
+        String resourcePath = "qs_risk_model.onnx";
+        URL modelUrl = getClass().getClassLoader().getResource(resourcePath);
+        if (modelUrl == null) {
+            log.error("✗ AI model not found in classpath: {}", resourcePath);
+            log.error("  - Please verify the file exists in: src/main/resources/");
+            throw new IllegalStateException("AI model resource missing: " + resourcePath);
+        }
+
+        if ("file".equalsIgnoreCase(modelUrl.getProtocol())) {
+            Path filePath = Paths.get(modelUrl.toURI());
+            log.info("Using classpath file model path: {}", filePath);
+            return env.createSession(filePath.toString());
+        }
+
+        log.warn("Model resource is not a direct file (protocol={}), trying byte[] load. If model uses external data, configure app.ai.model-path", modelUrl.getProtocol());
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                throw new IllegalStateException("AI model stream missing: " + resourcePath);
+            }
+            byte[] modelBytes = is.readAllBytes();
+            log.info("✓ Model bytes read: {} KB", modelBytes.length / 1024);
+            return env.createSession(modelBytes);
+        }
+    }
+
     public float predict(float scanCount, float timeVar, float locVar, float deviceCount) {
         return predictDetailed(scanCount, timeVar, locVar, deviceCount, 0f).score();
     }
@@ -110,7 +137,8 @@ public class AiRiskService {
         }
 
         try {
-            float[] input = {scanCount, timeVar, locVar, deviceCount, ipCount};
+            float[] rawFeatures = {scanCount, timeVar, locVar, deviceCount, ipCount};
+            float[] input = normalizer.normalize(rawFeatures);
             String inputName = resolveInputName(session.getInputNames());
             try (OnnxTensor tensor = OnnxTensor.createTensor(env, FloatBuffer.wrap(input), new long[]{1, 5});
                  OrtSession.Result res = session.run(Collections.singletonMap(inputName, tensor))) {

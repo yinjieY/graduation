@@ -8,10 +8,15 @@ export default defineConfig(({ command }) => ({
   server: {
     port: 5173,
     proxy: {
-      '/auth': 'http://localhost:9090',
-      '/alert': 'http://localhost:9090',
-      '/scan': 'http://localhost:9090',
-      '/trace': 'http://localhost:9090'
+      // '/auth': 'http://localhost:9090',
+      // '/alert': 'http://localhost:9090',
+      // '/scan': 'http://localhost:9090',
+      // '/trace': 'http://localhost:9090'
+
+      '/auth': 'http://192.168.214.1:9090',
+      '/alert': 'http://192.168.214.1:9090',
+      '/scan': 'http://192.168.214.1:9090',
+      '/trace': 'http://192.168.214.1:9090'
     }
   }
 }));

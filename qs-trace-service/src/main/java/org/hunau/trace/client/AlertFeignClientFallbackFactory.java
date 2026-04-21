@@ -21,6 +21,12 @@ public class AlertFeignClientFallbackFactory implements FallbackFactory<AlertFei
                 log.warn("Alert service notification fallback triggered: {}", cause.getMessage());
                 return R.ok(Map.of("notificationId", null, "created", false, "message", "通知服务暂时不可用"));
             }
+
+            @Override
+            public R<Map<String, Object>> evaluate(Map<String, Object> body) {
+                log.warn("Alert service evaluate fallback triggered: {}", cause.getMessage());
+                return R.ok(Map.of("riskLevel", "LOW", "riskScore", 0.0, "qsStatus", "active"));
+            }
         };
     }
 }

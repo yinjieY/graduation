@@ -72,6 +72,7 @@ public class CompanyAuthController {
         String companyName = normalize(request.getCompanyName());
         String address = normalize(request.getAddress());
         String contactPhone = normalize(request.getContactPhone());
+        String email = normalize(request.getEmail());
         Double lat = request.getLat();
         Double lng = request.getLng();
         
@@ -89,7 +90,7 @@ public class CompanyAuthController {
         }
         
         try {
-            companyAuthService.saveCompanyExtInfo(companyId, address, contactPhone, lat, lng);
+            companyAuthService.saveCompanyExtInfo(companyId, address, contactPhone, email, lat, lng);
             Map<String, Object> data = companyAuthService.submit(companyId, companyName, request.getRemark());
             return R.ok(data);
         } catch (IllegalArgumentException e) {

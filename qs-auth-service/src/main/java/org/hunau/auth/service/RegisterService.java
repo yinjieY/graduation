@@ -76,11 +76,13 @@ public class RegisterService {
         }
 
         String companyId = "COMPANY".equals(role) ? generateCompanyId() : null;
+        String email = normalize(request.getEmail());
         String encodedPassword = passwordEncoder.encode(password);
         jdbcTemplate.update(
-                "INSERT INTO auth_user(username, phone, password_hash, role, company_id, status, deleted) VALUES (?, ?, ?, ?, ?, 1, 0)",
+                "INSERT INTO auth_user(username, phone, email, password_hash, role, company_id, status, deleted) VALUES (?, ?, ?, ?, ?, ?, 1, 0)",
                 username,
                 phone,
+                email.isEmpty() ? null : email,
                 encodedPassword,
                 role,
                 companyId

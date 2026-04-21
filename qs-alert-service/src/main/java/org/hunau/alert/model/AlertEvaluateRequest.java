@@ -22,4 +22,9 @@ public class AlertEvaluateRequest {
     private Double distanceKm;
     private String city;
     private String province;
+    
+    // Device scan count for high frequency detection
+    private Integer deviceScanCount;
+    // Max allowed scans for the QS code
+    private Integer maxAllowedScans;
 }

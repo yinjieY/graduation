@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "scalerType": "StandardScaler",
+  "featureNames": [
+    "scan_count",
+    "time_variance",
+    "location_variance",
+    "device_count",
+    "ip_count"
+  ],
+  "means": [
+    7.41875,
+    1.21527727276625,
+    0.816027108560625,
+    5.60175,
+    4.360125
+  ],
+  "stds": [
+    26.316646793189665,
+    3.1823588556847575,
+    2.6858386885473253,
+    29.280221941397578,
+    23.569804517313568
+  ],
+  "minValues": null,
+  "maxValues": null,
+  "updateTime": "2026-04-21T17:28:24.542595"
+}

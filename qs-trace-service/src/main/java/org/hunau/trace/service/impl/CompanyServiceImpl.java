@@ -61,6 +61,10 @@ public class CompanyServiceImpl implements CompanyService {
                 existed.setContactPhone(request.getContactPhone());
                 updated = true;
             }
+            if (request.getEmail() != null && !request.getEmail().isBlank() && !request.getEmail().equals(existed.getEmail())) {
+                existed.setEmail(request.getEmail());
+                updated = true;
+            }
             
             if (updated) {
                 companyMapper.updateById(existed);
@@ -79,6 +83,7 @@ public class CompanyServiceImpl implements CompanyService {
         company.setLevel(request.getLevel() == null || request.getLevel().isBlank() ? "一级" : request.getLevel());
         company.setAddress(request.getAddress() == null || request.getAddress().isBlank() ? "待完善" : request.getAddress());
         company.setContactPhone(request.getContactPhone() == null || request.getContactPhone().isBlank() ? "待完善" : request.getContactPhone());
+        company.setEmail(request.getEmail());
         company.setLat(request.getLat());
         company.setLng(request.getLng());
         company.setStatus(request.getStatus() == null ? 1 : request.getStatus());

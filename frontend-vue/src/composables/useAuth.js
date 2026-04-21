@@ -2,11 +2,11 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { login, registerAdmin, registerCompany } from '../api/auth';
 import { clearToken as clearSessionToken, getToken as getSessionToken, setToken as setSessionToken } from '../api/session';
-import { useNotification } from './useNotification';
+import { notificationService } from './useNotification';
 
 export function useAuth() {
   const router = useRouter();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError } = notificationService;
   
   const isAuthenticated = ref(false);
   const userRole = ref('');

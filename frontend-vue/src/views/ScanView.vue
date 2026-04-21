@@ -34,10 +34,11 @@
           <div class="risk-seg" :class="{ 'active low': riskLevel === 'low' }">低风险</div>
           <div class="risk-seg" :class="{ 'active mid': riskLevel === 'mid' }">中风险</div>
           <div class="risk-seg" :class="{ 'active high': riskLevel === 'high' }">高风险</div>
+          <div class="risk-seg" :class="{ 'active critical': riskLevel === 'critical' }">极高风险</div>
         </div>
         <div class="conclusion" :class="riskLevel">
           <div class="conclusion-icon" :class="riskLevel">
-            {{ riskLevel === 'low' ? '✓' : riskLevel === 'mid' ? '⚠' : '✕' }}
+            {{ riskLevel === 'low' ? '✓' : riskLevel === 'mid' ? '⚠' : riskLevel === 'high' ? '✕' : '✕' }}
           </div>
           <div class="conclusion-text">{{ conclusion }}</div>
         </div>
@@ -267,7 +268,7 @@ const traceInfo = reactive({
 // 计算印章的样式和文案
 const stampConfig = computed(() => {
   if (heroStamp.value === '官方') return { class: 'official', icon: '✓', text: '官方认证' };
-  if (heroStamp.value === '异常' || heroStamp.value === '高风险') return { class: 'risk', icon: '✕', text: '高风险' };
+  if (heroStamp.value === '异常' || heroStamp.value === '高风险') return { class: 'risk', icon: '✕', text: '可能为假货' };
   if (heroStamp.value === '待确认') return { class: 'warning', icon: '⚠', text: '待确认' };
   return { class: 'checking', icon: '⟳', text: '校验中' };
 });
@@ -344,10 +345,37 @@ async function loadTrace() {
   traceInfo.issueTime = qs.issueTime || '-';
 
   scanStatus.value = '溯源查询成功';
-  if ((qs.status || '').toLowerCase() === 'active') {
-    officialStatus.value = '官方二维码（待验签确认）';
-    heroStamp.value = '待确认';
-    setRisk('mid', '结论：系统找到官方记录，正在上报扫码行为进行校验。');
+  
+  const riskEvaluation = res.data?.riskEvaluation;
+  if (riskEvaluation) {
+    const riskLevelFromBackend = riskEvaluation.riskLevel;
+    const riskScore = riskEvaluation.riskScore;
+    
+    const isCritical = riskLevelFromBackend === 'CRITICAL' || riskLevelFromBackend === '极高风险';
+    const isHigh = riskLevelFromBackend === 'HIGH' || riskLevelFromBackend === '高风险';
+    const isMedium = riskLevelFromBackend === 'MEDIUM' || riskLevelFromBackend === '中风险';
+    
+    if (isCritical) {
+      heroStamp.value = '高风险';
+      officialStatus.value = '二维码已冻结（极高风险）';
+      setRisk('critical', `结论：系统检测到极高风险（评分：${(riskScore * 100).toFixed(1)}分）。该二维码存在严重异常特征，疑似存在商家套用、伪造或恶意复制行为，二维码已被冻结。请立即停止购买或使用，并联系监管部门核实。`);
+    } else if (isHigh) {
+      heroStamp.value = '官方';
+      officialStatus.value = '官方二维码（高风险预警）';
+      setRisk('high', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分）。系统检测到较高风险特征，可能存在商家套用二维码、跨区域异常流通等行为。建议谨慎购买，并保留相关凭证以便后续维权。`);
+    } else if (isMedium) {
+      heroStamp.value = '官方';
+      officialStatus.value = '官方二维码（中等风险）';
+      setRisk('mid', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分）。系统检测到中等风险特征，可能存在非典型扫码行为模式。建议留意产品状态，如有异常可联系商家或平台反馈。`);
+    } else {
+      heroStamp.value = '官方';
+      officialStatus.value = '官方二维码（验签通过，状态正常）';
+      setRisk('low', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分）。扫码行为符合正常模式，未检测到异常风险特征，可放心购买和使用。`);
+    }
+  } else if ((qs.status || '').toLowerCase() === 'active') {
+    officialStatus.value = '官方二维码（验签通过，状态正常）';
+    heroStamp.value = '官方';
+    setRisk('low', '结论：该二维码为官方有效码，可放心查看溯源信息。');
   } else {
     officialStatus.value = `非官方流通码（${traceInfo.qsStatus}）`;
     heroStamp.value = '异常';
@@ -371,56 +399,60 @@ function updateGeo(lat, lng, reason) {
 }
 
 async function doReport() {
-  const res = await reportScan(scanForm);
-  debugData.value.report = res;
-  
-  if (res?.code === 200) {
-    reportStatus.value = '扫码行为上报成功';
+    const res = await reportScan(scanForm);
+    debugData.value.report = res;
     
-    const riskEvaluation = res.data?.riskEvaluation;
-    if (riskEvaluation) {
-      const riskLevelFromBackend = riskEvaluation.riskLevel;
-      const riskScore = riskEvaluation.riskScore;
-      const qsStatus = riskEvaluation.qsStatus;
+    if (res?.code === 200) {
+      reportStatus.value = '扫码行为上报成功';
       
-      if (riskLevelFromBackend === 'CRITICAL') {
-        heroStamp.value = '高风险';
-        officialStatus.value = '二维码已冻结（极高风险）';
-        setRisk('high', `结论：系统检测到极高风险（评分：${(riskScore * 100).toFixed(1)}分），二维码已被冻结，请联系监管部门核实。`);
-      } else if (riskLevelFromBackend === 'HIGH') {
-        heroStamp.value = '待确认';
-        officialStatus.value = '官方二维码（高风险预警）';
-        setRisk('mid', `结论：系统检测到高风险（评分：${(riskScore * 100).toFixed(1)}分），建议谨慎购买，已通知监管部门复核。`);
-      } else if (riskLevelFromBackend === 'MEDIUM') {
-        heroStamp.value = '待确认';
-        officialStatus.value = '官方二维码（中等风险）';
-        setRisk('mid', `结论：系统检测到中等风险（评分：${(riskScore * 100).toFixed(1)}分），建议留意产品状态。`);
-      } else {
-        heroStamp.value = '官方';
+      const riskEvaluation = res.data?.riskEvaluation;
+      if (riskEvaluation) {
+        const riskLevelFromBackend = riskEvaluation.riskLevel;
+        const riskScore = riskEvaluation.riskScore;
+        const qsStatus = riskEvaluation.qsStatus;
+        
+        const isCritical = riskLevelFromBackend === 'CRITICAL' || riskLevelFromBackend === '极高风险';
+        const isHigh = riskLevelFromBackend === 'HIGH' || riskLevelFromBackend === '高风险';
+        const isMedium = riskLevelFromBackend === 'MEDIUM' || riskLevelFromBackend === '中风险';
+        
+        if (isCritical) {
+          heroStamp.value = '高风险';
+          officialStatus.value = '二维码已冻结（极高风险）';
+          setRisk('critical', `结论：系统检测到极高风险（评分：${(riskScore * 100).toFixed(1)}分）。该二维码存在严重异常特征，疑似存在商家套用、伪造或恶意复制行为，二维码已被冻结。请立即停止购买或使用，并联系监管部门核实。`);
+        } else if (isHigh) {
+          heroStamp.value = '官方';
+          officialStatus.value = '官方二维码（高风险预警）';
+          setRisk('high', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分）。系统检测到较高风险特征，可能存在商家套用二维码、跨区域异常流通等行为。建议谨慎购买，并保留相关凭证以便后续维权。`);
+        } else if (isMedium) {
+          heroStamp.value = '官方';
+          officialStatus.value = '官方二维码（中等风险）';
+          setRisk('mid', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分）。系统检测到中等风险特征，可能存在非典型扫码行为模式。建议留意产品状态，如有异常可联系商家或平台反馈。`);
+        } else {
+          heroStamp.value = '官方';
+          officialStatus.value = '官方二维码（验签通过，状态正常）';
+          setRisk('low', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分）。扫码行为符合正常模式，未检测到异常风险特征，可放心购买和使用。`);
+        }
+        
+        if (qsStatus) {
+          traceInfo.qsStatus = mapStatus(qsStatus);
+        }
+      } else if (officialStatus.value.includes('官方二维码')) {
         officialStatus.value = '官方二维码（验签通过，状态正常）';
-        setRisk('low', `结论：该二维码为官方有效码（风险评分：${(riskScore * 100).toFixed(1)}分），可放心查看溯源信息。`);
+        heroStamp.value = '官方';
+        setRisk('low', '结论：该二维码为官方有效码，可放心查看溯源信息。');
       }
-      
-      if (qsStatus) {
-        traceInfo.qsStatus = mapStatus(qsStatus);
-      }
-    } else if (officialStatus.value.includes('官方二维码')) {
-      officialStatus.value = '官方二维码（验签通过，状态正常）';
-      heroStamp.value = '官方';
-      setRisk('low', '结论：该二维码为官方有效码，可放心查看溯源信息。');
+      return;
     }
-    return;
-  }
 
-  reportStatus.value = `上报失败: ${res?.msg || 'unknown'}`;
-  heroStamp.value = '高风险';
-  if (officialStatus.value.includes('官方二维码')) {
-    officialStatus.value = '疑似伪造二维码（验签失败）';
-  } else {
-    officialStatus.value = '非官方二维码';
+    reportStatus.value = `上报失败: ${res?.msg || 'unknown'}`;
+    heroStamp.value = '高风险';
+    if (officialStatus.value.includes('官方二维码')) {
+      officialStatus.value = '疑似伪造二维码（验签失败）';
+    } else {
+      officialStatus.value = '非官方二维码';
+    }
+    setRisk('high', '结论：二维码校验失败，请勿继续购买或流通。');
   }
-  setRisk('high', '结论：二维码校验失败，请勿继续购买或流通。');
-}
 
 async function autoLocateAndReport() {
   if (!navigator.geolocation || !window.isSecureContext) {
@@ -774,6 +806,7 @@ onMounted(async () => {
 .conclusion.low { background: var(--ok-bg); color: var(--ok-text); }
 .conclusion.mid { background: var(--warn-bg); color: var(--warn-text); }
 .conclusion.high { background: var(--err-bg); color: var(--err-text); }
+.conclusion.critical { background: #fdf2f2; color: #991b1b; }
 .conclusion-icon {
   width: 24px; height: 24px;
   border-radius: 50%;
@@ -795,6 +828,10 @@ onMounted(async () => {
 }
 .conclusion-icon.high {
   background: var(--err-text);
+  color: white;
+}
+.conclusion-icon.critical {
+  background: #991b1b;
   color: white;
 }
 .conclusion-text {
@@ -823,6 +860,7 @@ onMounted(async () => {
 .risk-seg.active.low  { background: var(--ok-bg); color: var(--ok-text); }
 .risk-seg.active.mid  { background: var(--warn-bg); color: var(--warn-text); }
 .risk-seg.active.high { background: var(--err-bg); color: var(--err-text); }
+.risk-seg.active.critical { background: #fdf2f2; color: #991b1b; }
 .risk-seg.active::after {
   content: '▼';
   display: block;

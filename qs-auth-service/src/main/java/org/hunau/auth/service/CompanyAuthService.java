@@ -190,7 +190,7 @@ public class CompanyAuthService {
         body.put("companyId", companyId);
         body.put("name", companyName);
         
-        String sql = "SELECT address, contact_phone, lat, lng FROM company_auth_ext WHERE company_id = ? LIMIT 1";
+        String sql = "SELECT address, contact_phone, email, lat, lng FROM company_auth_ext WHERE company_id = ? LIMIT 1";
         Map<String, Object> extInfo = jdbcTemplate.query(sql, rs -> {
             if (!rs.next()) {
                 return null;
@@ -198,6 +198,7 @@ public class CompanyAuthService {
             Map<String, Object> info = new HashMap<>();
             info.put("address", rs.getString("address"));
             info.put("contactPhone", rs.getString("contact_phone"));
+            info.put("email", rs.getString("email"));
             info.put("lat", rs.getDouble("lat"));
             info.put("lng", rs.getDouble("lng"));
             return info;
@@ -206,6 +207,7 @@ public class CompanyAuthService {
         if (extInfo != null) {
             body.put("address", extInfo.get("address"));
             body.put("contactPhone", extInfo.get("contactPhone"));
+            body.put("email", extInfo.get("email"));
             body.put("lat", extInfo.get("lat"));
             body.put("lng", extInfo.get("lng"));
         }
@@ -223,32 +225,35 @@ public class CompanyAuthService {
         }
     }
     
-    public void saveCompanyExtInfo(String companyId, String address, String contactPhone, Double lat, Double lng) {
+    public void saveCompanyExtInfo(String companyId, String address, String contactPhone, String email, Double lat, Double lng) {
         String normalizedCompanyId = normalize(companyId);
         if (normalizedCompanyId.isEmpty()) {
             throw new IllegalArgumentException("companyId 不能为空");
         }
         
         String sql = """
-                INSERT INTO company_auth_ext(company_id, address, contact_phone, lat, lng)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO company_auth_ext(company_id, address, contact_phone, email, lat, lng)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     address = VALUES(address),
                     contact_phone = VALUES(contact_phone),
+                    email = VALUES(email),
                     lat = VALUES(lat),
                     lng = VALUES(lng)
                 """;
-        jdbcTemplate.update(sql, normalizedCompanyId, normalize(address), normalize(contactPhone), lat, lng);
+        jdbcTemplate.update(sql, normalizedCompanyId, normalize(address), normalize(contactPhone), normalize(email), lat, lng);
     }
 
     public List<Map<String, Object>> pendingList() {
         String sql = """
-                SELECT company_id, company_name, review_status,
-                       apply_by, apply_time,
-                       review_by, review_time, remark
-                FROM company_auth
-                WHERE review_status = 0
-                ORDER BY updated_at DESC
+                SELECT ca.company_id, ca.company_name, ca.review_status,
+                       ca.apply_by, ca.apply_time,
+                       ca.review_by, ca.review_time, ca.remark,
+                       cae.address, cae.contact_phone, cae.email, cae.lat, cae.lng
+                FROM company_auth ca
+                LEFT JOIN company_auth_ext cae ON ca.company_id = cae.company_id
+                WHERE ca.review_status = 0
+                ORDER BY ca.updated_at DESC
                 """;
         return jdbcTemplate.query(sql, (rs, rowNum) -> {
             Map<String, Object> data = new LinkedHashMap<>();
@@ -262,6 +267,11 @@ public class CompanyAuthService {
             data.put("reviewBy", rs.getString("review_by"));
             data.put("reviewTime", rs.getTimestamp("review_time"));
             data.put("remark", rs.getString("remark"));
+            data.put("address", rs.getString("address"));
+            data.put("contactPhone", rs.getString("contact_phone"));
+            data.put("email", rs.getString("email"));
+            data.put("lat", rs.getDouble("lat"));
+            data.put("lng", rs.getDouble("lng"));
             return data;
         });
     }

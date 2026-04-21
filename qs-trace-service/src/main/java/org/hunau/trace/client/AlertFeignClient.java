@@ -15,4 +15,7 @@ public interface AlertFeignClient {
 
     @PostMapping("/alert/admin/action/notify")
     R<Map<String, Object>> sendAdminActionNotification(@RequestBody Map<String, Object> body);
+
+    @PostMapping("/alert/evaluate")
+    R<Map<String, Object>> evaluate(@RequestBody Map<String, Object> body);
 }

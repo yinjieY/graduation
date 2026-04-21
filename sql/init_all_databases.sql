@@ -37,19 +37,20 @@ CREATE TABLE `company` (
                            `level` ENUM('特级','一级') DEFAULT '一级' COMMENT '企业资质等级',
                            `address` VARCHAR(255) NOT NULL COMMENT '企业生产经营地址',
                            `contact_phone` VARCHAR(20) NOT NULL COMMENT '企业联系电话（已脱敏）',
+                           `email` VARCHAR(100) NULL COMMENT '企业邮箱地址（用于接收预警通知）',
                            `lat` DOUBLE NULL COMMENT '企业所在纬度（用于跨区域销售检测）',
                            `lng` DOUBLE NULL COMMENT '企业所在经度（用于跨区域销售检测）',
                            `status` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '企业状态：1正常 0禁用',
                            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
                            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
                            KEY `idx_company_location` (`lat`, `lng`) COMMENT '地理位置索引，加速跨区域检测'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '企业信息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '企业信息表';
 
 -- 1.6 插入企业测试数据
 -- 说明：初始化两个测试企业，分别为特级和一级资质（湖南株洲攸县经纬度：27.03, 113.32）
-INSERT INTO `company` (`company_id`,`name`,`level`,`address`,`contact_phone`,`lat`,`lng`,`status`) VALUES
-                                                                                           ('C001','攸县老灶香干厂','特级','湖南株洲攸县','138****1234',27.03,113.32,1),
-                                                                                           ('C002','湘东豆制品有限公司','一级','湖南株洲攸县','139****5678',27.03,113.32,1);
+INSERT INTO `company` (`company_id`,`name`,`level`,`address`,`contact_phone`,`email`,`lat`,`lng`,`status`) VALUES
+                                                                                           ('C001','攸县老灶香干厂','特级','湖南株洲攸县','138****1234','contact@laozao.com',27.03,113.32,1),
+                                                                                           ('C002','湘东豆制品有限公司','一级','湖南株洲攸县','139****5678','info@xiangdong.com',27.03,113.32,1);
 
 -- 1.7 创建产品生产批次表
 -- 用途：存储产品生产批次信息，关联企业信息，作为二维码生成的基础
@@ -67,7 +68,7 @@ CREATE TABLE `product_batch` (
                                  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
                                  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录更新时间',
                                  CONSTRAINT `fk_batch_company` FOREIGN KEY (`company_id`) REFERENCES `company` (`company_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '产品生产批次表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '产品生产批次表';
 
 -- 1.8 插入批次测试数据
 -- 说明：为每个企业创建一个测试批次，包含不同的配料和数量
@@ -93,7 +94,7 @@ CREATE TABLE `qs_code` (
                            CONSTRAINT `fk_qs_batch` FOREIGN KEY (`batch_id`) REFERENCES `product_batch` (`batch_id`),
                            KEY `idx_qs_company` (`company_id`) COMMENT '企业ID索引，加速企业相关查询',
                            KEY `idx_qs_batch` (`batch_id`) COMMENT '批次ID索引，加速批次相关查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '溯源二维码表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '溯源二维码表';
 
 -- 1.10 插入二维码测试数据
 -- 说明：为每个批次创建一个测试二维码，状态为活跃，最大扫码次数为5次
@@ -138,7 +139,7 @@ CREATE TABLE `scan_log` (
                             KEY `idx_qs_time` (`qs_id`, `scan_time`) COMMENT '二维码ID+扫码时间索引，加速按二维码查询历史',
                             KEY `idx_device` (`device_fingerprint`) COMMENT '设备指纹索引，加速设备相关查询',
                             KEY `idx_scan_time` (`scan_time`) COMMENT '扫码时间索引，加速时间范围查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '扫码行为日志表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '扫码行为日志表';
 
 -- 2.6 插入扫码测试数据
 -- 说明：为每个测试二维码创建一条扫码记录，包含不同的设备和位置信息
@@ -180,7 +181,7 @@ CREATE TABLE `feedback_record` (
   UNIQUE KEY `uk_qs_device_feedback` (`qs_id`,`device_fingerprint`) COMMENT '同一设备对同一二维码仅能提交一次',
   KEY `idx_feedback_qs_time` (`qs_id`,`created_at`) COMMENT '二维码+时间索引，加速按二维码查询反馈',
   KEY `idx_feedback_company` (`company_id`) COMMENT '企业索引，加速企业相关反馈查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消费者质量反馈记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='消费者质量反馈记录表';
 
 -- 2.9 插入反馈测试数据
 -- 说明：创建两条测试反馈记录，分别为假冒伪劣和跨区域销售类型
@@ -218,15 +219,15 @@ CREATE TABLE `alert_rule` (
                               `status` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '规则状态：1启用 0禁用',
                               `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '规则更新时间',
                               KEY `idx_rule_level` (`alert_level`) COMMENT '预警等级索引，加速按等级查询规则'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '预警规则配置表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '预警规则配置表';
 
 -- 3.6 插入预警规则测试数据
 -- 说明：创建三条测试预警规则，分别为高频扫码、多设备扫码和多IP扫码
 INSERT INTO `alert_rule` (`rule_id`,`rule_name`,`rule_content`,`threshold`,`score_weight`,`alert_level`,`status`) VALUES
     ('R000','AI模型触发','AI模型单独检测到风险（无规则命中）','AI_ONLY',0.0,1,1),
-    ('R001','高频扫码','IF scan_count_1h >= threshold THEN alert','1h>=5',0.50,3,1),
-    ('R002','多设备扫码','IF device_count_1d >= threshold THEN alert','1d>=10',0.40,2,1),
-    ('R003','多IP扫码','IF ip_count_1h >= threshold THEN alert','1h>=20',0.45,1,1);
+    ('R001','高频扫码','IF scan_count_1h >= threshold THEN alert','1h>=5',0.25,3,1),
+    ('R002','多设备扫码','IF device_count_1d >= threshold THEN alert','1d>=10',0.35,2,1),
+    ('R003','多IP扫码','IF ip_count_1h >= threshold THEN alert','1h>=20',0.4,1,1);
 
 -- 3.7 创建预警事件记录表
 -- 用途：记录触发的预警事件，包含预警原因、处理状态等
@@ -251,7 +252,7 @@ CREATE TABLE `alert_record` (
                                 KEY `idx_status` (`status`) COMMENT '状态索引，加速按状态查询',
                                 KEY `idx_alert_batch` (`batch_id`) COMMENT '批次ID索引，加速批次预警查询',
                                 CONSTRAINT `fk_alert_rule` FOREIGN KEY (`rule_id`) REFERENCES `alert_rule` (`rule_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '预警事件记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '预警事件记录表';
 
 -- 3.8 插入预警记录测试数据
 -- 说明：创建一条测试预警记录，模拟高频扫码触发的预警
@@ -269,7 +270,7 @@ CREATE TABLE `alert_read` (
     KEY `idx_company_read` (`company_id`),
     UNIQUE KEY `uk_alert_company` (`alert_id`, `company_id`),
     CONSTRAINT `fk_read_alert` FOREIGN KEY (`alert_id`) REFERENCES `alert_record` (`alert_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '预警消息已读记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '预警消息已读记录表';
 
 -- 3.10 创建预警执行动作表
 -- 用途：记录预警触发的执行动作，包含动作类型、执行结果等
@@ -283,14 +284,34 @@ CREATE TABLE `alert_action` (
                                 `retry_count` TINYINT(1) DEFAULT 0 COMMENT '执行重试次数',
                                 KEY `idx_alert_action` (`alert_id`) COMMENT '预警ID索引，加速按预警查询动作',
                                 CONSTRAINT `fk_action_alert` FOREIGN KEY (`alert_id`) REFERENCES `alert_record` (`alert_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '预警执行动作表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '预警执行动作表';
 
 -- 3.11 插入预警动作测试数据
 -- 说明：为测试预警记录创建一条通知动作记录
 INSERT INTO `alert_action` (`alert_id`,`action_type`,`result`) VALUES
     (1,'notify','发送预警成功');
 
--- 3.12 创建系统通知表
+-- 3.12 创建预警触发状态表
+-- 用途：记录同一规则对同一二维码的触发状态，实现"同规则只通知一次"机制
+CREATE TABLE `alert_trigger_status` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '状态记录自增ID',
+    `qs_id` VARCHAR(64) NOT NULL COMMENT '二维码ID',
+    `company_id` VARCHAR(64) NOT NULL COMMENT '企业ID',
+    `rule_id` VARCHAR(32) NOT NULL COMMENT '规则ID',
+    `risk_level` VARCHAR(16) NOT NULL COMMENT '风险等级',
+    `first_trigger_time` DATETIME NOT NULL COMMENT '首次触发时间',
+    `last_trigger_time` DATETIME NOT NULL COMMENT '最后触发时间',
+    `trigger_count` INT NOT NULL DEFAULT 1 COMMENT '触发次数',
+    `last_alert_id` BIGINT NULL COMMENT '最后预警记录ID',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/RESOLVED',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY `uk_qs_rule` (`qs_id`, `rule_id`) COMMENT '二维码+规则唯一索引',
+    KEY `idx_qs_id` (`qs_id`) COMMENT '二维码索引',
+    KEY `idx_status` (`status`) COMMENT '状态索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='预警触发状态表';
+
+-- 3.13 创建系统通知表
 -- 用途：存储系统公告、审核结果、操作日志等通知信息
 CREATE TABLE `sys_notification` (
     `notification_id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '通知记录自增ID',
@@ -308,7 +329,7 @@ CREATE TABLE `sys_notification` (
     KEY `idx_status` (`status`),
     KEY `idx_created_at` (`created_at`),
     UNIQUE KEY `uk_notification_unique` (`company_id`, `title`(50), `type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统通知表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统通知表';
 
 -- 3.13 创建系统公告已读记录表
 -- 用途：记录企业对系统公告的阅读状态（系统公告所有企业共享，需单独记录阅读状态）
@@ -322,7 +343,7 @@ CREATE TABLE `notification_read` (
     KEY `idx_company_id` (`company_id`),
     UNIQUE KEY `uk_notification_company` (`notification_id`, `company_id`),
     CONSTRAINT `fk_read_notification` FOREIGN KEY (`notification_id`) REFERENCES `sys_notification`(`notification_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统公告已读记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统公告已读记录表';
 
 -- 3.14 插入系统通知测试数据
 INSERT INTO `sys_notification` (`company_id`, `title`, `content`, `type`, `source_module`, `source_id`) VALUES
@@ -339,7 +360,7 @@ INSERT INTO `sys_notification` (`company_id`, `title`, `content`, `type`, `sourc
 -- 4.1 删除旧数据库（如果存在）
 DROP DATABASE IF EXISTS `yx_company_auth`;
 -- 4.2 创建新数据库，设置字符集为utf8mb4
-CREATE DATABASE `yx_company_auth` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE `yx_company_auth` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- 4.3 切换到该数据库
 USE `yx_company_auth`;
 
@@ -354,6 +375,7 @@ CREATE TABLE `auth_user` (
                              `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户自增ID',
                              `username` VARCHAR(64) NOT NULL COMMENT '登录用户名（唯一）',
                              `phone` VARCHAR(20) NOT NULL COMMENT '登录手机号（唯一）',
+                             `email` VARCHAR(100) DEFAULT NULL COMMENT '用户邮箱（用于接收通知）',
                              `password_hash` VARCHAR(255) NOT NULL COMMENT 'BCrypt加密密码哈希',
                              `role` VARCHAR(32) NOT NULL COMMENT '用户角色：ADMIN/COMPANY/CONSUMER/SERVICE',
                              `company_id` VARCHAR(32) DEFAULT NULL COMMENT '关联企业ID（企业用户）',
@@ -368,7 +390,7 @@ CREATE TABLE `auth_user` (
                              KEY `idx_auth_user_company_id` (`company_id`) COMMENT '企业ID索引，加速企业用户查询',
                              KEY `idx_auth_user_phone` (`phone`) COMMENT '手机号索引，加速手机号查询',
                              KEY `idx_auth_user_status` (`status`) COMMENT '状态索引，加速按状态查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '系统用户表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '系统用户表';
 
 -- 4.6 创建企业资质认证审核表
 -- 用途：存储企业资质认证申请和审核记录
@@ -387,7 +409,7 @@ CREATE TABLE `company_auth` (
                                 PRIMARY KEY (`id`) COMMENT '认证记录ID主键',
                                 UNIQUE KEY `uk_company_auth_company_id` (`company_id`) COMMENT '企业ID唯一索引',
                                 KEY `idx_company_auth_review_status` (`review_status`) COMMENT '审核状态索引，加速按状态查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '企业资质认证审核表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '企业资质认证审核表';
 
 -- 4.7 创建企业认证扩展信息表
 -- 用途：存储企业认证申请时提交的详细信息
@@ -396,13 +418,14 @@ CREATE TABLE `company_auth_ext` (
                                     `company_id` VARCHAR(32) NOT NULL COMMENT 'Business company id',
                                     `address` VARCHAR(255) DEFAULT NULL COMMENT '企业地址',
                                     `contact_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+                                    `email` VARCHAR(100) DEFAULT NULL COMMENT '企业邮箱（用于接收预警通知）',
                                     `lat` DOUBLE DEFAULT NULL COMMENT '企业所在纬度',
                                     `lng` DOUBLE DEFAULT NULL COMMENT '企业所在经度',
                                     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                     PRIMARY KEY (`id`),
                                     UNIQUE KEY `uk_company_auth_ext_company_id` (`company_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Company auth extended info';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Company auth extended info';
 
 -- 4.7 插入企业认证测试数据
 -- 说明：创建两条测试企业认证记录，一条已通过，一条待审核
@@ -412,18 +435,18 @@ INSERT INTO `company_auth` (`company_id`,`company_name`,`review_status`,`apply_b
 
 -- 4.8 插入企业认证扩展信息测试数据
 -- 说明：为测试企业添加地址、联系电话和经纬度信息
-INSERT INTO `company_auth_ext` (`company_id`,`address`,`contact_phone`,`lat`,`lng`) VALUES
-                                                                                     ('C001','湖南株洲攸县','138****1234',27.03,113.32),
-                                                                                     ('C002','湖南株洲攸县','139****5678',27.03,113.32);
+INSERT INTO `company_auth_ext` (`company_id`,`address`,`contact_phone`,`email`,`lat`,`lng`) VALUES
+                                                                                     ('C001','湖南株洲攸县','138****1234','contact@laozao.com',27.03,113.32),
+                                                                                     ('C002','湖南株洲攸县','139****5678','info@xiangdong.com',27.03,113.32);
 
 -- 4.9 插入系统用户测试数据
 -- 说明：创建三个测试用户，分别为管理员、企业用户和消费者用户
 -- initial password: password
 -- bcrypt: $2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa
-INSERT INTO `auth_user` (`username`,`phone`,`password_hash`,`role`,`company_id`,`status`,`deleted`) VALUES
-                                                                                                ('admin001',  '13800000001', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'ADMIN', NULL,   1, 0),
-                                                                                                ('company01', '13800000002', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'COMPANY','C001', 1, 0),
-                                                                                                ('consumer01','13800000003', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'CONSUMER',NULL,  1, 0);
+INSERT INTO `auth_user` (`username`,`phone`,`email`,`password_hash`,`role`,`company_id`,`status`,`deleted`) VALUES
+                                                                                                ('admin001',  '13800000001', 'admin@example.com', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'ADMIN', NULL,   1, 0),
+                                                                                                ('company01', '13800000002', 'company01@laozao.com', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'COMPANY','C001', 1, 0),
+                                                                                                ('consumer01','13800000003', 'consumer01@example.com', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.9hA3/5fM9vDOMkMt2rt7NmBGG99nmCa', 'CONSUMER',NULL,  1, 0);
 
 -- ==================================================
 -- 库 5：yx_blockchain_proof 区块链存证库
@@ -433,7 +456,7 @@ INSERT INTO `auth_user` (`username`,`phone`,`password_hash`,`role`,`company_id`,
 -- 5.1 删除旧数据库（如果存在）
 DROP DATABASE IF EXISTS `yx_blockchain_proof`;
 -- 5.2 创建新数据库，设置字符集为utf8mb4
-CREATE DATABASE `yx_blockchain_proof` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE `yx_blockchain_proof` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- 5.3 切换到该数据库
 USE `yx_blockchain_proof`;
 
@@ -464,7 +487,7 @@ CREATE TABLE `blockchain_proof` (
                                     KEY `idx_business_type` (`business_key`,`proof_type`) COMMENT '业务键+类型索引，加速组合查询',
                                     KEY `idx_hash` (`hash`) COMMENT '哈希值索引，加速哈希查询',
                                     KEY `idx_chain_status` (`chain_status`) COMMENT '链上状态索引，加速按状态查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '区块链存证记录表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '区块链存证记录表';
 
 -- 5.6 插入区块链存证测试数据
 -- 说明：为测试二维码创建两条存证记录，测试多次存证场景
@@ -494,7 +517,7 @@ CREATE TABLE `proof_outbox` (
                                  KEY `idx_outbox_status_retry` (`status`, `next_retry_at`) COMMENT '状态+重试时间索引，加速任务调度',
                                  KEY `idx_outbox_proof` (`proof_id`) COMMENT '存证ID索引，加速关联查询',
                                  CONSTRAINT `fk_outbox_proof` FOREIGN KEY (`proof_id`) REFERENCES `blockchain_proof` (`proof_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='异步存证Outbox';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='异步存证Outbox';
 
 -- 5.9 创建存证死信记录表
 -- 用途：存储处理失败的存证任务，便于后续分析和处理
@@ -506,7 +529,7 @@ CREATE TABLE `proof_dead_letter` (
                                       `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                                       PRIMARY KEY (`dead_id`) COMMENT '死信记录ID主键',
                                       KEY `idx_dead_outbox` (`outbox_id`) COMMENT 'Outbox ID索引，加速关联查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='存证死信记录';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='存证死信记录';
 
 -- ==================================================
 -- 库 6：yx_geo_profile 设备地理画像库
@@ -536,7 +559,7 @@ CREATE TABLE `device_profile` (
                                   `scan_count` INT DEFAULT 1 COMMENT '设备累计扫码次数',
                                   KEY `idx_device_risk` (`is_risk`) COMMENT '风险标记索引，加速风险设备查询',
                                   KEY `idx_province_city` (`province`, `city`) COMMENT '省市索引，加速地理相关查询'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '设备画像信息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '设备画像信息表';
 
 -- 6.6 插入设备画像测试数据
 -- 说明：创建一条测试设备画像记录，模拟Android设备在湖南攸县的扫码行为
@@ -562,18 +585,18 @@ DROP TABLE IF EXISTS `reuse_pattern`;
 CREATE TABLE `reuse_pattern` (
                                  `pattern_id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '特征记录自增ID',
                                  `qs_id` VARCHAR(32) NOT NULL COMMENT '溯源二维码ID',
-                                 `scan_count` INT NOT NULL COMMENT '累计扫码总次数',
+                                 `scan_count` INT NULL COMMENT '累计扫码总次数',
                                  `time_variance` DOUBLE NULL COMMENT '扫码时间分布方差',
                                  `location_variance` DOUBLE NULL COMMENT '扫码位置分布方差',
-                                 `device_count` INT NOT NULL COMMENT '扫码设备数量',
-                                 `ip_count` INT NOT NULL COMMENT '扫码IP数量',
+                                 `device_count` INT NULL COMMENT '扫码设备数量',
+                                 `ip_count` INT NULL COMMENT '扫码IP数量',
                                  `is_reused` TINYINT(1) NOT NULL COMMENT '是否判定为复用：0否 1是',
                                  `model_version` VARCHAR(20) NOT NULL DEFAULT 'v1.0' COMMENT '使用的AI模型版本',
                                  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '特征生成时间',
                                  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '特征更新时间',
                                  UNIQUE KEY `uk_qs` (`qs_id`) COMMENT '二维码ID唯一索引',
                                  KEY `idx_is_reused` (`is_reused`) COMMENT '复用标记索引，加速复用分析'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '二维码复用识别特征表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT '二维码复用识别特征表';
 
 -- 7.6 插入复用特征测试数据
 -- 说明：为测试二维码创建一条复用特征记录，模拟正常使用场景

@@ -64,15 +64,15 @@
         </div>
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>企业ID</th><th>企业名</th><th>申请人</th><th>备注</th><th>操作</th></tr></thead>
+            <thead><tr><th>企业ID</th><th>企业名</th><th>申请人</th><th>操作</th></tr></thead>
             <tbody>
-            <tr v-if="pendingList.length === 0"><td colspan="5" class="empty-state">暂无待审企业</td></tr>
+            <tr v-if="pendingList.length === 0"><td colspan="4" class="empty-state">暂无待审企业</td></tr>
             <tr v-for="item in pendingList" :key="item.companyId">
               <td>{{ item.companyId }}</td>
               <td class="company-name">{{ item.companyName }}</td>
-              <td>{{ item.applyBy }}</td>
-              <td class="remark">{{ item.remark }}</td>
+              <td>{{ item.applyBy || '-' }}</td>
               <td class="actions">
+                <button class="btn-detail" :disabled="loading" @click="viewPendingDetail(item)">详情</button>
                 <button class="btn-primary" :disabled="loading" @click="review(item.companyId, true)">通过</button>
                 <button class="btn-secondary" :disabled="loading" @click="review(item.companyId, false)">拒绝</button>
               </td>
@@ -85,7 +85,7 @@
       <!-- 企业详情对话框 -->
       <div v-if="showDetailDialog" class="dialog-overlay" @click="closeDetailDialog">
         <div class="dialog-content" @click.stop>
-          <h2>企业详情</h2>
+          <h2>{{ isPendingDetail ? '待审企业详情' : '企业详情' }}</h2>
           <div class="detail-content">
             <div class="detail-item">
               <label>企业ID：</label>
@@ -100,12 +100,34 @@
               <span>{{ currentCompanyDetail?.address || '-' }}</span>
             </div>
             <div class="detail-item">
+              <label>企业邮箱：</label>
+              <span>{{ currentCompanyDetail?.email || '-' }}</span>
+            </div>
+            <div class="detail-item">
               <label>联系电话：</label>
               <span>{{ currentCompanyDetail?.contactPhone || '-' }}</span>
             </div>
+            <div v-if="isPendingDetail" class="detail-item">
+              <label>申请人：</label>
+              <span>{{ currentCompanyDetail?.applyBy || '-' }}</span>
+            </div>
+            <div v-if="isPendingDetail" class="detail-item">
+              <label>申请时间：</label>
+              <span>{{ formatTime(currentCompanyDetail?.applyTime) }}</span>
+            </div>
+            <div v-if="isPendingDetail" class="detail-item">
+              <label>备注：</label>
+              <span>{{ currentCompanyDetail?.remark || '-' }}</span>
+            </div>
             <div class="detail-item">
               <label>状态：</label>
-              <span>{{ currentCompanyDetail?.status || '-' }}</span>
+              <span :class="{ 
+                'status-pending': currentCompanyDetail?.reviewStatus === 0 || currentCompanyDetail?.status === 'PENDING', 
+                'status-approved': currentCompanyDetail?.reviewStatus === 1 || currentCompanyDetail?.status === 'APPROVED', 
+                'status-rejected': currentCompanyDetail?.reviewStatus === 2 || currentCompanyDetail?.status === 'REJECTED' 
+              }">
+                {{ currentCompanyDetail?.statusText || currentCompanyDetail?.status || '-' }}
+              </span>
             </div>
           </div>
           <div class="form-actions">
@@ -133,6 +155,7 @@ const token = ref(getToken('admin'));
 const queryForm = ref({ companyId: '', companyName: '' });
 const showDetailDialog = ref(false);
 const currentCompanyDetail = ref(null);
+const isPendingDetail = ref(false);
 
 async function loadPending() {
   loading.value = true;
@@ -219,13 +242,33 @@ function viewCompanyDetail(companyId) {
   const hit = companies.value.find((item) => String(item.companyId) === String(companyId));
   if (hit) {
     currentCompanyDetail.value = hit;
+    isPendingDetail.value = false;
     showDetailDialog.value = true;
   }
+}
+
+function viewPendingDetail(item) {
+  currentCompanyDetail.value = item;
+  isPendingDetail.value = true;
+  showDetailDialog.value = true;
 }
 
 function closeDetailDialog() {
   showDetailDialog.value = false;
   currentCompanyDetail.value = null;
+  isPendingDetail.value = false;
+}
+
+function formatTime(time) {
+  if (!time) return '-';
+  const date = new Date(time);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 onMounted(async () => {
@@ -460,6 +503,23 @@ td {
 .btn-secondary:hover:not(:disabled) {
   background: #f8fafc;
   border-color: #cbd5e1;
+}
+
+.btn-detail {
+  padding: 6px 12px;
+  border: 1px solid #8b5cf6;
+  border-radius: 6px;
+  background: white;
+  color: #8b5cf6;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-detail:hover:not(:disabled) {
+  background: #f5f3ff;
+  border-color: #7c3aed;
 }
 
 button:disabled {

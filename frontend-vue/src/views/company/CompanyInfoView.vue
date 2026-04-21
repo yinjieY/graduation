@@ -23,6 +23,10 @@
             <span>{{ formData.name || '-' }}</span>
           </div>
           <div class="read-only-item">
+            <label>企业邮箱</label>
+            <span>{{ formData.email || '-' }}</span>
+          </div>
+          <div class="read-only-item">
             <label>企业地址</label>
             <span>{{ formData.address || '-' }}</span>
           </div>
@@ -48,6 +52,13 @@
               placeholder="请输入企业名称"
               :error="errors.name"
               required
+            />
+            <BaseInput
+              v-model="formData.email"
+              label="企业邮箱"
+              placeholder="请输入企业邮箱"
+              :error="errors.email"
+              type="email"
             />
             <BaseInput
               v-model="formData.address"
@@ -126,6 +137,13 @@
             placeholder="请输入企业名称"
             :error="errors.name"
             required
+          />
+          <BaseInput
+            v-model="formData.email"
+            label="企业邮箱"
+            placeholder="请输入企业邮箱"
+            :error="errors.email"
+            type="email"
           />
           <BaseInput
             v-model="formData.address"
@@ -209,6 +227,7 @@ const submitNoticeType = ref('info');
 const isEditing = ref(false);
 const originalData = reactive({
   name: '',
+  email: '',
   address: '',
   contactPhone: '',
   lat: '',
@@ -217,6 +236,7 @@ const originalData = reactive({
 
 const formData = reactive({
   name: '',
+  email: '',
   address: '',
   contactPhone: '',
   lat: '',
@@ -225,6 +245,7 @@ const formData = reactive({
 
 const errors = reactive({
   name: '',
+  email: '',
   address: '',
   contactPhone: '',
   lat: '',
@@ -294,6 +315,7 @@ const handleSubmit = async () => {
     await api.submitCompanyApply({
       companyId,
       companyName: formData.name,
+      email: formData.email,
       address: formData.address,
       contactPhone: formData.contactPhone,
       lat: parseFloat(formData.lat),
@@ -315,6 +337,7 @@ const handleSubmit = async () => {
 
 const startEditing = () => {
   originalData.name = formData.name;
+  originalData.email = formData.email;
   originalData.address = formData.address;
   originalData.contactPhone = formData.contactPhone;
   originalData.lat = formData.lat;
@@ -324,6 +347,7 @@ const startEditing = () => {
 
 const cancelEditing = () => {
   formData.name = originalData.name;
+  formData.email = originalData.email;
   formData.address = originalData.address;
   formData.contactPhone = originalData.contactPhone;
   formData.lat = originalData.lat;
@@ -352,6 +376,7 @@ const handleSubmitModify = async () => {
     await api.submitCompanyApply({
       companyId,
       companyName: formData.name,
+      email: formData.email,
       address: formData.address,
       contactPhone: formData.contactPhone,
       lat: parseFloat(formData.lat),

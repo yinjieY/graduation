@@ -26,6 +26,7 @@ public class AlertService {
     private final AiRiskService aiRiskService;
     private final AlertRuleEngineService alertRuleEngineService;
     private final AlertTriggerStatusService alertTriggerStatusService;
+    private final NotificationGateway notificationGateway;
     private final TraceFeignClient traceFeignClient;
     private final BlockFeignClient blockFeignClient;
     private final JdbcTemplate jdbcTemplate;
@@ -34,6 +35,7 @@ public class AlertService {
     public AlertService(AiRiskService aiRiskService,
                         AlertRuleEngineService alertRuleEngineService,
                         AlertTriggerStatusService alertTriggerStatusService,
+                        NotificationGateway notificationGateway,
                         TraceFeignClient traceFeignClient,
                         BlockFeignClient blockFeignClient,
                         JdbcTemplate jdbcTemplate,
@@ -41,13 +43,14 @@ public class AlertService {
         this.aiRiskService = aiRiskService;
         this.alertRuleEngineService = alertRuleEngineService;
         this.alertTriggerStatusService = alertTriggerStatusService;
+        this.notificationGateway = notificationGateway;
         this.traceFeignClient = traceFeignClient;
         this.blockFeignClient = blockFeignClient;
         this.jdbcTemplate = jdbcTemplate;
         this.adminActionNotificationService = adminActionNotificationService;
     }
 
-    public R<AlertRecord> evaluate(AlertEvaluateRequest req) {
+    public R<Map<String, Object>> evaluate(AlertEvaluateRequest req) {
         AssertUtil.notNull(req, "请求不能为空");
         AssertUtil.notEmpty(req.getQsId(), "qsId不能为空");
         AssertUtil.notEmpty(req.getCompanyId(), "companyId不能为空");
@@ -55,22 +58,20 @@ public class AlertService {
         int scanCount1h = firstNonNull(req.getScanCount1h(), req.getScanCount());
         int deviceCount1d = firstNonNull(req.getDeviceCount1d(), req.getDeviceCount());
         int ipCount1h = firstNonNull(req.getIpCount1h(), req.getIpCount());
+        int deviceScanCount = Optional.ofNullable(req.getDeviceScanCount()).orElse(0);
+        Integer maxAllowedScans = req.getMaxAllowedScans();
         double timeVar = Optional.ofNullable(req.getTimeVariance()).orElse(0.0);
         double locVar = Optional.ofNullable(req.getLocationVariance()).orElse(0.0);
         boolean newDevice = Boolean.TRUE.equals(req.getNewDevice());
         boolean riskDevice = Boolean.TRUE.equals(req.getRiskDevice());
         double distanceKm = Optional.ofNullable(req.getDistanceKm()).orElse(0.0);
 
-        log.info("[风险评估] 阶段1/4 - 输入特征: qsId={}, companyId={}, scanCount1h={}, deviceCount1d={}, ipCount1h={}, locVar={}, timeVar={}, distanceKm={}, newDevice={}, riskDevice={}",
-                req.getQsId(), req.getCompanyId(), scanCount1h, deviceCount1d, ipCount1h, locVar, timeVar, distanceKm, newDevice, riskDevice);
+        log.info("[风险评估] 阶段1/4 - 输入特征: qsId={}, companyId={}, scanCount1h={}, deviceCount1d={}, ipCount1h={}, deviceScanCount={}, maxAllowedScans={}, locVar={}, timeVar={}, distanceKm={}, newDevice={}, riskDevice={}",
+                req.getQsId(), req.getCompanyId(), scanCount1h, deviceCount1d, ipCount1h, deviceScanCount, maxAllowedScans, locVar, timeVar, distanceKm, newDevice, riskDevice);
 
         RuleEngineResult ruleResult = alertRuleEngineService.evaluate(scanCount1h, deviceCount1d, ipCount1h);
         double ruleScore = ruleResult.ruleScore();
-        double enrichedRuleScore = ruleScore;
-        
-        if (ruleScore > 0) {
-            enrichedRuleScore = enrichRuleScore(ruleScore, locVar, newDevice, riskDevice, distanceKm);
-        }
+        double enrichedRuleScore = enrichRuleScore(ruleScore, locVar, newDevice, riskDevice, distanceKm, deviceScanCount, maxAllowedScans);
         
         log.info("[风险评估] 阶段2/4 - 规则引擎: 命中规则={}, 命中原因={}, 基础分数={}, 增强后分数={}",
                 ruleResult.hitRuleIds(), 
@@ -159,7 +160,32 @@ public class AlertService {
                     record.getQsId(), record.getRiskScore());
         }
 
-        return R.ok(record);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("eventId", record.getEventId());
+        payload.put("qsId", record.getQsId());
+        payload.put("companyId", record.getCompanyId());
+
+// 兼容旧前端字段
+        payload.put("riskScore", score);
+        payload.put("riskLevel", level.name());
+
+// 新增更明确字段（推荐前端使用）
+        payload.put("finalScore", score);
+        payload.put("finalRiskLevel", level.name());
+        payload.put("aiScore", aiScore);
+        payload.put("ruleScore", enrichedRuleScore);
+        payload.put("aiWeight", 0.6);
+        payload.put("ruleWeight", 0.4);
+        payload.put("aiContribution", aiScore * 0.6);
+        payload.put("ruleContribution", enrichedRuleScore * 0.4);
+        payload.put("aiMode", aiResult.mode());
+        payload.put("hitRuleIds", ruleResult.hitRuleIds());
+        payload.put("hitReasons", ruleResult.hitReasons());
+        payload.put("status", record.getStatus());
+        payload.put("createdAt", record.getCreatedAt());
+
+        return R.ok(payload);
+
     }
 
     private void updateExistingAlertRecord(AlertRecord record, RuleEngineResult ruleResult, Long alertId) {
@@ -178,7 +204,7 @@ public class AlertService {
         jdbcTemplate.update(
                 "INSERT INTO alert_action(alert_id,action_type,result,push_status,retry_count) VALUES (?,?,?,?,?)",
                 alertId,
-                "update",
+                "notify",
                 "告警内容已更新",
                 "success",
                 0
@@ -424,7 +450,9 @@ public class AlertService {
                              double locVar,
                              boolean newDevice,
                              boolean riskDevice,
-                             double distanceKm) {
+                             double distanceKm,
+                             int deviceScanCount,
+                             Integer maxAllowedScans) {
         double score = ruleScore;
         double totalBonus = 0.0;
         
@@ -457,7 +485,20 @@ public class AlertService {
             log.debug("[规则增强] 风险设备, 增强分数=0.10");
         }
         
-        // 确保总增强不超过0.5
+        if (deviceScanCount >= 5) {
+            double deviceBonus = 0.0;
+            if (maxAllowedScans != null && maxAllowedScans > 0) {
+                int threshold = maxAllowedScans * 2;
+                deviceBonus = Math.min(0.10, (double) deviceScanCount / threshold * 0.10);
+                log.debug("[规则增强] 设备扫描次数={}, 二维码最大扫描次数={}, 阈值={}, 按阈值均分增强分数={}", 
+                        deviceScanCount, maxAllowedScans, threshold, deviceBonus);
+            } else {
+                deviceBonus = Math.min(0.10, (deviceScanCount - 4) * 0.005);
+                log.debug("[规则增强] 设备扫描次数={}, 无最大扫描次数配置, 默认线性增强分数={}", deviceScanCount, deviceBonus);
+            }
+            totalBonus += deviceBonus;
+        }
+        
         totalBonus = Math.min(0.5, totalBonus);
         score += totalBonus;
         
@@ -471,13 +512,39 @@ public class AlertService {
     }
 
     private void notifyRegulator(AlertRecord record) {
-        record.setNotifyChannel("SYSTEM,SMS,EMAIL");
-        boolean success = sendNotification(record);
+        boolean emailSuccess = sendEmailNotification(record);
         record.setNotifyRetry(0);
-        if (!success) {
-            record.setStatus("NOTIFY_FAILED");
+        
+        if (!emailSuccess) {
+            record.setStatus("EMAIL_NOTIFY_FAILED");
         }
-        persistNotifyAction(record, success ? "发送预警成功" : "发送预警失败");
+        
+        String result = emailSuccess ? "发送邮箱预警成功" : "发送邮箱预警失败(系统通知已发送)";
+        persistNotifyAction(record, result);
+    }
+    
+    private boolean sendEmailNotification(AlertRecord record) {
+        RiskLevel level = record.getRiskLevel();
+        if (level != RiskLevel.HIGH && !isFrozenAlert(record)) {
+            log.debug("Email notification not required for level={}, detail={}, skip email, system notification sent", 
+                    level, record.getDetail());
+            return true;
+        }
+        
+        String companyEmail = getCompanyEmailById(record.getCompanyId());
+        log.debug("Fetched company email for companyId={}: {}", record.getCompanyId(), companyEmail);
+        
+        NotificationGateway.NotificationResult result = notificationGateway.send(record, companyEmail);
+        
+        log.info("[邮箱通知推送] qsId={}, level={}, companyId={}, companyEmail={}, success={}, retryCount={}, pushStatus={}, message={}", 
+                record.getQsId(), level, record.getCompanyId(), companyEmail,
+                result.success(), result.retryCount(), result.pushStatus(), result.message());
+        
+        record.setNotifyChannel(result.channelSummary());
+        record.setNotifyRetry(result.retryCount());
+        record.setNotifyTime(LocalDateTime.now());
+        
+        return result.success();
     }
 
     private void saveEventProof(AlertRecord record) {
@@ -546,10 +613,22 @@ public class AlertService {
         }
         return "";
     }
+    
+    private String getCompanyEmailById(String companyId) {
+        try {
+            R<?> response = traceFeignClient.getCompanyInfoById(companyId);
+            if (response != null && response.getCode() == 200 && response.getData() != null) {
+                Map<String, Object> data = (Map<String, Object>) response.getData();
+                return (String) data.getOrDefault("email", "");
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
+    }
 
-    private boolean sendNotification(AlertRecord record) {
-        // TODO: replace with real message/SMS/email adapter.
-        return record != null;
+    private boolean isFrozenAlert(AlertRecord record) {
+        String detail = record.getDetail();
+        return detail != null && (detail.contains("frozen") || detail.contains("冻结"));
     }
 
     private void persistAlertRecord(AlertRecord record, RuleEngineResult ruleResult, RiskLevel level) {

@@ -21,19 +21,27 @@ spring:
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
-  http:
-    encoding:
-      enabled: true
-      charset: UTF-8
-      force: true
   servlet:
     encoding:
       charset: UTF-8
       enabled: true
       force: true
+  mail:
+    host: smtp.example.com
+    port: 587
+    username: 3184631688@qq.com
+    password: cnhngbizenaydfab
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 app:
   ai:
+    model-path: ${AI_MODEL_PATH:}
     positive-class-index: 1
     output-kind: auto   # auto | logits | prob
   integration:
@@ -42,3 +50,14 @@ app:
   rules:
     refresh-ms: 10000
     initial-delay-ms: 3000
+  notification:
+    retry-once: true
+    mail:
+      enabled: true
+      to: admin@example.com
+      subject-prefix: "[QS-ALERT]"
+    sms:
+      enabled: false
+      gateway-url:
+      to:
+      api-key:

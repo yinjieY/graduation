@@ -1,5 +1,7 @@
 package org.hunau.common.enums;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+
 public enum RiskLevel {
     CRITICAL("极高风险", 4, 86, 100),
     HIGH("高风险", 3, 61, 85),
@@ -16,6 +18,11 @@ public enum RiskLevel {
         this.level = level;
         this.minScore = minScore;
         this.maxScore = maxScore;
+    }
+    
+    @JsonValue
+    public String getName() {
+        return name();
     }
     
     public String getDescription() {

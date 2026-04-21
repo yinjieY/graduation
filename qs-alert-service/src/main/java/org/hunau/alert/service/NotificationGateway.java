@@ -55,28 +55,41 @@ public class NotificationGateway {
     }
 
     public NotificationResult send(AlertRecord record) {
-        RiskLevel level = record == null ? null : record.getRiskLevel();
+        return send(record, null);
+    }
+    
+    public NotificationResult send(AlertRecord record, String customMailTo) {
+        if (record == null) {
+            log.warn("Alert record is null, skip notification");
+            return new NotificationResult(false, 0, "fail", "预警记录为空", "");
+        }
+        
+        RiskLevel level = record.getRiskLevel();
         boolean needSms = level == RiskLevel.HIGH;
-        boolean needMail = level == RiskLevel.MEDIUM;
+        boolean needMail = level == RiskLevel.HIGH || isFrozenStatus(record.getDetail());
 
-        ChannelAttempt first = sendByRequiredChannels(record, needSms, needMail);
+        ChannelAttempt first = sendByRequiredChannels(record, customMailTo, needSms, needMail);
         if (first.success() || !retryOnce || (!first.smsFailed() && !first.mailFailed())) {
             return first.toResult(0);
         }
 
-        ChannelAttempt second = retryFailedChannels(record, first, needSms, needMail);
+        ChannelAttempt second = retryFailedChannels(record, customMailTo, first, needSms, needMail);
         return second.toResult(1);
     }
+    
+    private boolean isFrozenStatus(String detail) {
+        return detail != null && (detail.contains("frozen") || detail != null && detail.contains("冻结"));
+    }
 
-    private ChannelAttempt sendByRequiredChannels(AlertRecord record, boolean needSms, boolean needMail) {
+    private ChannelAttempt sendByRequiredChannels(AlertRecord record, String customMailTo, boolean needSms, boolean needMail) {
         boolean smsOk = !needSms || sendSms(record);
-        boolean mailOk = !needMail || sendMail(record);
+        boolean mailOk = !needMail || sendMail(record, customMailTo);
         return new ChannelAttempt(smsOk, mailOk, needSms && !smsOk, needMail && !mailOk);
     }
 
-    private ChannelAttempt retryFailedChannels(AlertRecord record, ChannelAttempt first, boolean needSms, boolean needMail) {
+    private ChannelAttempt retryFailedChannels(AlertRecord record, String customMailTo, ChannelAttempt first, boolean needSms, boolean needMail) {
         boolean smsOk = !needSms || !first.smsFailed() || sendSms(record);
-        boolean mailOk = !needMail || !first.mailFailed() || sendMail(record);
+        boolean mailOk = !needMail || !first.mailFailed() || sendMail(record, customMailTo);
         return new ChannelAttempt(smsOk, mailOk, needSms && !smsOk, needMail && !mailOk);
     }
 
@@ -112,7 +125,7 @@ public class NotificationGateway {
         }
     }
 
-    private boolean sendMail(AlertRecord record) {
+    private boolean sendMail(AlertRecord record, String customMailTo) {
         if (!mailEnabled) {
             log.warn("mail channel disabled, skip send");
             return false;
@@ -121,20 +134,23 @@ public class NotificationGateway {
             log.warn("mail sender bean unavailable, check spring.mail.* config");
             return false;
         }
-        if (isBlank(mailTo)) {
-            log.warn("mail config missing, mail.to is blank");
+        
+        String recipient = isBlank(customMailTo) ? mailTo : customMailTo;
+        if (isBlank(recipient)) {
+            log.warn("mail recipient is blank, skip send");
             return false;
         }
 
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(mailTo);
+            message.setTo(recipient);
             message.setSubject(mailSubjectPrefix + " 风险预警 " + (record == null || record.getRiskLevel() == null ? "UNKNOWN" : record.getRiskLevel().name()));
             message.setText(buildMailText(record));
             mailSender.send(message);
+            log.info("Mail sent successfully to: {}", recipient);
             return true;
         } catch (Exception ex) {
-            log.warn("send mail failed: {}", ex.getMessage());
+            log.warn("send mail failed to {}: {}", recipient, ex.getMessage());
             return false;
         }
     }

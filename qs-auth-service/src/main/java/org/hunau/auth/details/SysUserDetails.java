@@ -14,6 +14,7 @@ public class SysUserDetails implements UserDetails {
     private Long userId;
     private String username;
     private String password;
+    private String email;
     private String companyId;
     private String role;
     private boolean enabled;

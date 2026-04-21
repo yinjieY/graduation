@@ -180,13 +180,33 @@ def build_parser():
     return parser
 
 
+def load_and_preprocess_data(csv_path: Path) -> pd.DataFrame:
+    df = pd.read_csv(csv_path)
+    print(f"原始样本数: {len(df)}")
+    
+    df_clean = df.dropna(subset=["is_reused"])
+    dropped_count = len(df) - len(df_clean)
+    if dropped_count > 0:
+        print(f"删除标签缺失样本: {dropped_count}")
+        df = df_clean
+    
+    for col in FEATURE_COLUMNS:
+        if df[col].isnull().any():
+            median_val = df[col].median()
+            df[col] = df[col].fillna(median_val)
+            print(f"填充 {col} 缺失值，中位数: {median_val:.2f}")
+    
+    print(f"处理后样本数: {len(df)}")
+    return df
+
+
 def main():
     args = build_parser().parse_args()
     reuse_csv = Path(args.reuse_csv)
     if not reuse_csv.exists():
         raise FileNotFoundError(f"dataset not found: {reuse_csv}")
 
-    df = build_training_frame(reuse_csv)
+    df = load_and_preprocess_data(reuse_csv)
     teacher, _ = train_teacher(df, epochs=args.teacher_epochs, lr=args.learning_rate)
     student, _ = distill_student(teacher, df, epochs=args.student_epochs, lr=args.learning_rate)
     export_onnx(student, Path(args.onnx_out))

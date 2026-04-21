@@ -131,6 +131,15 @@ export async function apiFetch(url, options = {}) {
         throw error;
       }
       
+      // 处理业务错误码（非200表示业务失败）
+      if (data && typeof data === 'object' && data.code !== undefined && data.code !== 200) {
+        const message = data.msg || '操作失败';
+        const error = new Error(message);
+        error.status = data.code;
+        error.payload = data;
+        throw error;
+      }
+      
       // 仅缓存GET成功响应
       if (shouldUseCache) {
         cache.set(cacheKey, {
