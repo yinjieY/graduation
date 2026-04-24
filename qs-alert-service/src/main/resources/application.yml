@@ -27,17 +27,19 @@ spring:
       enabled: true
       force: true
   mail:
-    host: smtp.example.com
+    host: smtp.qq.com
     port: 587
     username: 3184631688@qq.com
     password: cnhngbizenaydfab
     protocol: smtp
+    default-encoding: UTF-8
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+          timeout: 5000
 
 app:
   ai:
@@ -56,6 +58,7 @@ app:
       enabled: true
       to: admin@example.com
       subject-prefix: "[QS-ALERT]"
+      detail-url: http://localhost:5173/#/admin/alert/detail
     sms:
       enabled: false
       gateway-url:

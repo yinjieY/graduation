@@ -71,6 +71,37 @@
 
         <div class="card">
           <div class="card-header">
+            <h3>个人信息</h3>
+            <button class="btn-refresh" :disabled="loading" @click="loadUserInfo">
+              <span v-if="loading" class="loading-spinner"></span>
+              刷新
+            </button>
+          </div>
+          <div class="user-info-form">
+            <div class="form-row">
+              <label>用户名</label>
+              <input v-model="userInfoForm.username" disabled class="disabled-input" />
+            </div>
+            <div class="form-row">
+              <label>角色</label>
+              <input v-model="userInfoForm.role" disabled class="disabled-input" />
+            </div>
+            <div class="form-row">
+              <label>邮箱 <span class="required">*</span></label>
+              <input v-model="userInfoForm.email" type="email" placeholder="请输入邮箱地址" />
+            </div>
+            <div class="form-row">
+              <label>手机号</label>
+              <input v-model="userInfoForm.phone" type="tel" placeholder="请输入手机号" />
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary" :disabled="loading" @click="updateUserInfo">保存修改</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
             <h3>反馈处理</h3>
             <button class="btn-refresh" :disabled="loading" @click="loadFeedbacks">
               <span v-if="loading" class="loading-spinner"></span>
@@ -128,7 +159,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getMessages } from '../api/alert';
 import { getFeedbackDetail, getFeedbackList, updateFeedbackStatus } from '../api/feedback';
-import { getPending, reviewCompany } from '../api/auth';
+import { getPending, reviewCompany, getUserInfo, updateUserInfo } from '../api/auth';
 import { clearToken, getToken } from '../api/session';
 import Layout from '../components/Layout.vue';
 
@@ -143,6 +174,7 @@ const pendingList = ref([]);
 const messageList = ref([]);
 const feedbackList = ref([]);
 const detailData = ref({});
+const userInfoForm = reactive({ username: '', email: '', phone: '', role: '' });
 
 const query = computed(() => ({
   alertId: route.query.alertId || route.query.eventId || '',
@@ -229,9 +261,21 @@ async function updateStatus(feedbackId, status) {
   }, `反馈 ${feedbackId} 已更新为 ${status}`);
 }
 
+async function loadUserInfo() {
+  const res = await getUserInfo(token.value);
+  Object.assign(userInfoForm, res.data);
+}
+
+async function updateUserInfo() {
+  await withLoading(async () => {
+    await updateUserInfo(userInfoForm.email, userInfoForm.phone, token.value);
+    await loadUserInfo();
+  }, '个人信息更新成功');
+}
+
 onMounted(async () => {
   await withLoading(async () => {
-    await Promise.all([loadPending(), loadMessages(), loadFeedbacks()]);
+    await Promise.all([loadPending(), loadMessages(), loadFeedbacks(), loadUserInfo()]);
     if (query.value.feedbackId) {
       await loadDetail(String(query.value.feedbackId));
     }
@@ -546,6 +590,55 @@ textarea:focus {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   font-style: italic;
+}
+
+.user-info-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-row label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.form-row .required {
+  color: #ef4444;
+}
+
+.form-row input {
+  padding: 10px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.form-row input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-row .disabled-input {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 @media (max-width: 768px) {

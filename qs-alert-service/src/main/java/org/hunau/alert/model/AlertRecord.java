@@ -1,8 +1,8 @@
 package org.hunau.alert.model;
 
+import lombok.Data;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Data;
 import org.hunau.common.enums.RiskLevel;
 
 import java.time.LocalDateTime;

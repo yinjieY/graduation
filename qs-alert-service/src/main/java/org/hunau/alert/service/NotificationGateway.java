@@ -49,6 +49,9 @@ public class NotificationGateway {
     @Value("${app.notification.mail.subject-prefix:[QS-ALERT]}")
     private String mailSubjectPrefix;
 
+    @Value("${spring.mail.username:}")
+    private String mailFrom;
+
     public NotificationGateway(RestTemplate restTemplate, ObjectProvider<JavaMailSender> mailSenderProvider) {
         this.restTemplate = restTemplate;
         this.mailSender = mailSenderProvider.getIfAvailable();
@@ -69,7 +72,7 @@ public class NotificationGateway {
         boolean needMail = level == RiskLevel.HIGH || isFrozenStatus(record.getDetail());
 
         ChannelAttempt first = sendByRequiredChannels(record, customMailTo, needSms, needMail);
-        if (first.success() || !retryOnce || (!first.smsFailed() && !first.mailFailed())) {
+        if (first.success() || !retryOnce || !first.mailFailed()) {
             return first.toResult(0);
         }
 
@@ -143,7 +146,8 @@ public class NotificationGateway {
 
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(recipient);
+            message.setFrom(mailFrom);
+            message.setTo(recipient.split(","));
             message.setSubject(mailSubjectPrefix + " 风险预警 " + (record == null || record.getRiskLevel() == null ? "UNKNOWN" : record.getRiskLevel().name()));
             message.setText(buildMailText(record));
             mailSender.send(message);
@@ -162,17 +166,31 @@ public class NotificationGateway {
         return "QSGuard预警: qsId=" + record.getQsId() + ", level=" + record.getRiskLevel() + ", score=" + String.format("%.2f", record.getRiskScore());
     }
 
+    @Value("${app.notification.mail.detail-url:http://localhost:5173/#/admin/alert/detail}")
+    private String mailDetailUrl;
+
     private String buildMailText(AlertRecord record) {
         if (record == null) {
             return "预警详情为空";
         }
-        return "预警详情\n"
-                + "eventId=" + record.getEventId() + "\n"
-                + "qsId=" + record.getQsId() + "\n"
-                + "companyId=" + record.getCompanyId() + "\n"
-                + "riskLevel=" + record.getRiskLevel() + "\n"
-                + "riskScore=" + String.format("%.4f", record.getRiskScore()) + "\n"
-                + "detail=" + record.getDetail();
+        String detailUrl = mailDetailUrl + "?eventId=" + record.getEventId();
+        return "【攸县香干质量安全预警系统】\n\n"
+                + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                + "预警通知\n"
+                + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                + "事件ID: " + record.getEventId() + "\n"
+                + "二维码ID: " + record.getQsId() + "\n"
+                + "企业ID: " + record.getCompanyId() + "\n"
+                + "风险等级: " + record.getRiskLevel() + "\n"
+                + "风险分数: " + String.format("%.4f", record.getRiskScore()) + "\n\n"
+                + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                + "预警详情\n"
+                + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                + record.getDetail() + "\n\n"
+                + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                + "查看详情: " + detailUrl + "\n"
+                + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                + "【温馨提示】此邮件由系统自动发送，请勿直接回复。";
     }
 
     private boolean isBlank(String text) {
@@ -181,7 +199,7 @@ public class NotificationGateway {
 
     private record ChannelAttempt(boolean smsOk, boolean mailOk, boolean smsFailed, boolean mailFailed) {
         private boolean success() {
-            return smsOk && mailOk;
+            return mailOk;
         }
 
         private NotificationResult toResult(int retryCount) {
@@ -189,10 +207,8 @@ public class NotificationGateway {
             String pushStatus = success ? (retryCount > 0 ? "retry" : "success") : "fail";
             String message = success
                     ? (retryCount > 0 ? "发送预警成功(重试1次后成功)" : "发送预警成功")
-                    : "发送预警失败"
-                    + "(sms=" + (smsOk ? "ok" : "fail")
-                    + ", mail=" + (mailOk ? "ok" : "fail") + ")";
-            String channelSummary = "SYSTEM,SMS,EMAIL";
+                    : "发送预警失败(mail=" + (mailOk ? "ok" : "fail") + ")";
+            String channelSummary = "SYSTEM,EMAIL";
             return new NotificationResult(success, retryCount, pushStatus, message, channelSummary);
         }
     }

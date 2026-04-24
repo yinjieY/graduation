@@ -531,13 +531,11 @@ public class AlertService {
             return true;
         }
         
-        String companyEmail = getCompanyEmailById(record.getCompanyId());
-        log.debug("Fetched company email for companyId={}: {}", record.getCompanyId(), companyEmail);
+        String allRecipients = buildEmailRecipients(record);
+        NotificationGateway.NotificationResult result = notificationGateway.send(record, allRecipients);
         
-        NotificationGateway.NotificationResult result = notificationGateway.send(record, companyEmail);
-        
-        log.info("[邮箱通知推送] qsId={}, level={}, companyId={}, companyEmail={}, success={}, retryCount={}, pushStatus={}, message={}", 
-                record.getQsId(), level, record.getCompanyId(), companyEmail,
+        log.info("[邮箱预警通知推送] qsId={}, level={}, companyId={}, recipients={}, success={}, retryCount={}, pushStatus={}, message={}", 
+                record.getQsId(), level, record.getCompanyId(), allRecipients,
                 result.success(), result.retryCount(), result.pushStatus(), result.message());
         
         record.setNotifyChannel(result.channelSummary());
@@ -545,6 +543,54 @@ public class AlertService {
         record.setNotifyTime(LocalDateTime.now());
         
         return result.success();
+    }
+    
+    private String buildEmailRecipients(AlertRecord record) {
+        StringBuilder recipients = new StringBuilder();
+        
+        String adminEmail = getReviewerEmail(record.getQsId());
+        if (!isBlank(adminEmail)) {
+            recipients.append(adminEmail);
+        }
+        
+        String companyEmail = getCompanyEmailById(record.getCompanyId());
+        if (!isBlank(companyEmail)) {
+            if (recipients.length() > 0) {
+                recipients.append(",");
+            }
+            recipients.append(companyEmail);
+        }
+        
+        if (recipients.length() == 0) {
+            return null;
+        }
+        
+        return recipients.toString();
+    }
+    
+    private String getReviewerEmail(String qsId) {
+        if (isBlank(qsId)) {
+            return null;
+        }
+        try {
+            String sql = """
+                    SELECT u.email 
+                    FROM qs_code q 
+                    LEFT JOIN batch_info b ON q.batch_id = b.batch_id 
+                    LEFT JOIN company_auth ca ON b.company_id = ca.company_id 
+                    LEFT JOIN auth_user u ON ca.review_by = u.username 
+                    WHERE q.qs_id = ? AND u.email IS NOT NULL AND u.email != ''
+                    LIMIT 1
+                    """;
+            return jdbcTemplate.queryForObject(sql, String.class, qsId);
+        } catch (Exception e) {
+            log.debug("Failed to get reviewer email for qsId={}: {}", qsId, e.getMessage());
+            return null;
+        }
+    }
+    
+    private boolean isBlank(String text) {
+        return text == null || text.trim().isEmpty();
     }
 
     private void saveEventProof(AlertRecord record) {

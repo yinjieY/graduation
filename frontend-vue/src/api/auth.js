@@ -65,3 +65,24 @@ export function getCompanyToken() {
   return localStorage.getItem('company_token') || '';
 }
 
+export function getUserInfo(token) {
+  return apiFetch('/auth/user/info', {
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
+export function updateUserInfo(email, phone, token) {
+  const body = new URLSearchParams();
+  if (email) body.append('email', email);
+  if (phone) body.append('phone', phone);
+  return apiFetch('/auth/user/update', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...authHeaders(token)
+    },
+    body: body.toString()
+  });
+}
+

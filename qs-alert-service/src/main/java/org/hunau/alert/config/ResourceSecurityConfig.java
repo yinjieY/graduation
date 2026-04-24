@@ -28,6 +28,7 @@ public class ResourceSecurityConfig {
                         .requestMatchers("/alert/messages/feedback").permitAll()
                         .requestMatchers("/alert/admin/action/notify").permitAll()
                         .requestMatchers("/alert/system-notifications").permitAll()
+                        .requestMatchers("/alert/test/mail").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthFilter(), UsernamePasswordAuthenticationFilter.class);

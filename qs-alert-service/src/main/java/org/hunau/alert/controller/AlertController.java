@@ -9,6 +9,9 @@ import org.hunau.alert.model.RuleThresholdUpdateRequest;
 import org.hunau.alert.service.AdminActionNotificationService;
 import org.hunau.alert.service.AlertRuleEngineService;
 import org.hunau.alert.service.AlertService;
+import org.hunau.alert.service.NotificationGateway;
+import org.hunau.alert.model.AlertRecord;
+import org.hunau.common.enums.RiskLevel;
 import org.hunau.common.model.R;
 import org.hunau.common.util.AssertUtil;
 import org.hunau.common.util.JwtUtil;
@@ -23,12 +26,15 @@ public class AlertController {
     private final AlertService alertService;
     private final AlertRuleEngineService alertRuleEngineService;
     private final AdminActionNotificationService adminActionNotificationService;
+    private final NotificationGateway notificationGateway;
 
     public AlertController(AlertService alertService, AlertRuleEngineService alertRuleEngineService,
-                          AdminActionNotificationService adminActionNotificationService) {
+                          AdminActionNotificationService adminActionNotificationService,
+                          NotificationGateway notificationGateway) {
         this.alertService = alertService;
         this.alertRuleEngineService = alertRuleEngineService;
         this.adminActionNotificationService = adminActionNotificationService;
+        this.notificationGateway = notificationGateway;
     }
 
     @PostMapping("/evaluate")
@@ -175,6 +181,28 @@ public class AlertController {
         }
         String companyId = JwtUtil.getCompanyId(token);
         return companyId == null ? "" : companyId.trim();
+    }
+
+    @GetMapping("/test/mail")
+    @org.springframework.security.access.prepost.PreAuthorize("permitAll()")
+    public R<?> testMailNotification(@RequestParam(required = false) String to) {
+        AlertRecord testRecord = new AlertRecord();
+        testRecord.setEventId("TEST-" + System.currentTimeMillis());
+        testRecord.setQsId("QS-TEST-001");
+        testRecord.setCompanyId("C-TEST-001");
+        testRecord.setRiskScore(0.75);
+        testRecord.setRiskLevel(RiskLevel.HIGH);
+        testRecord.setDetail("这是一封测试邮件，用于验证邮件推送系统是否正常工作。\n测试内容：邮件发送功能测试\n时间：" + java.time.LocalDateTime.now());
+
+        NotificationGateway.NotificationResult result = notificationGateway.send(testRecord, to);
+        
+        return R.ok(java.util.Map.of(
+                "success", result.success(),
+                "retryCount", result.retryCount(),
+                "pushStatus", result.pushStatus(),
+                "message", result.message(),
+                "channelSummary", result.channelSummary()
+        ));
     }
 }
 
