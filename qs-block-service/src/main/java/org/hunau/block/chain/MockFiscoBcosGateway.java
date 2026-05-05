@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "app.blockchain.gateway-mode", havingValue = "mock", matchIfMissing = true)
 public class MockFiscoBcosGateway implements BlockchainGateway {
 
     @Value("${app.blockchain.contract-address:0xMOCK_CONTRACT}")

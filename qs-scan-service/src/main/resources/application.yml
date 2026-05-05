@@ -21,10 +21,10 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 app:
-#  crypto:
-#    sm2:
-#      # 生产环境请通过 Nacos/环境变量注入真实公钥
-#      public-key: TRACE_PRIVATE_KEY
+  crypto:
+    sm2:
+      # SM2公钥（用于验签）- 与trace-service的私钥配对
+      public-key: B9C9A6E04E9C91F7BA880429273747D7EF5DDEB0BB2FF6317EB00BEF331A83081
   clients:
     trace-service-url: http://localhost:9092
     alert-service-url: http://localhost:9094

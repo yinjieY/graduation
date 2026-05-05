@@ -2,6 +2,11 @@
 <project version="4">
   <component name="RemoteRepositoriesConfiguration">
     <remote-repository>
+      <option name="id" value="FISCO-BCOS" />
+      <option name="name" value="FISCO-BCOS Maven Repository" />
+      <option name="url" value="https:// osp.b格斯org/FISCO-BCOS/maven/releases" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Maven Central repository" />
       <option name="url" value="https://repo1.maven.org/maven2" />
@@ -20,6 +25,11 @@
       <option name="id" value="central" />
       <option name="name" value="central" />
       <option name="url" value="https://repo1.maven.org/maven2" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="FISCO-BCOS" />
+      <option name="name" value="FISCO BCOS Maven Repository" />
+      <option name="url" value="https://mvnrepo.fisco.org/repository/releases/" />
     </remote-repository>
   </component>
 </project>

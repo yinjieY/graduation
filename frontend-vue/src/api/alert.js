@@ -184,6 +184,27 @@ export function markAlertAsRead(alertId, token) {
   });
 }
 
+export function markAllAlertsAsRead(token) {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('companyUserInfo') || '{}');
+    const companyId = userInfo.companyId || '';
+    if (companyId) {
+      return apiFetch(`/alert/read/all?companyId=${encodeURIComponent(companyId)}`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        noCache: true
+      });
+    }
+  } catch (error) {
+    console.error('获取companyId失败:', error);
+  }
+  return apiFetch('/alert/read/all', {
+    method: 'POST',
+    headers: authHeaders(token),
+    noCache: true
+  });
+}
+
 // 风险评估
 export function evaluateRisk(payload, token) {
   return apiFetch('/alert/evaluate', {

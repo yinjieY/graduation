@@ -1,0 +1,24 @@
+[network]
+peers = ["127.0.0.1:20200"]
+
+[cryptoMaterial]
+# 证书配置 - 相对于config.toml的位置
+caCert = "sdk/ca.crt"
+sslCert = "sdk/sdk.crt"
+sslKey = "sdk/sdk.key"
+
+[amop]
+    [[amop.topics]]
+    topic = "YourTopic"
+
+[account]
+    keyStoreDir = "account"
+    accountFile = ""
+    accountFileFormat = "pem" # 或 "p12"
+    password = ""
+
+[blockchain]
+    # 群组ID
+    groupId = 0
+    # 链ID
+    chainId = 0

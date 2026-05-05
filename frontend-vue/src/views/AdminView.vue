@@ -47,25 +47,58 @@
               刷新
             </button>
           </div>
-          <div class="table-wrapper">
-            <table>
-              <thead><tr><th>预警ID</th><th>企业</th><th>等级</th><th>原因</th><th>状态</th><th>动作结果</th></tr></thead>
-              <tbody>
-              <tr v-if="filteredMessages.length === 0"><td colspan="6" class="empty-state">暂无系统消息</td></tr>
-              <tr v-for="item in filteredMessages" :key="item.alertId" :class="{ highlight: query.alertId && String(item.alertId) === String(query.alertId) }">
-                <td>{{ item.alertId }}</td>
-                <td>{{ item.companyId }}</td>
-                <td>
-                  <span :class="{ 'level-high': item.alertLevel === 'HIGH', 'level-medium': item.alertLevel === 'MEDIUM' }">
-                    {{ item.alertLevel }}
-                  </span>
-                </td>
-                <td>{{ item.reason }}</td>
-                <td>{{ item.status }}</td>
-                <td>{{ item.actionResult }}</td>
-              </tr>
-              </tbody>
-            </table>
+          <div class="batch-groups">
+            <div v-if="filteredMessages.length === 0" class="empty-state">暂无系统消息</div>
+            
+            <div v-for="group in filteredMessages" :key="group.batchId || group.batchName" class="batch-group">
+              <div class="batch-header">
+                <div class="batch-info">
+                  <span class="batch-icon">📦</span>
+                  <span class="batch-name">{{ group.batchName || group.batchId || '未命名批次' }}</span>
+                </div>
+                <div class="batch-stats">
+                  <span class="stat-item">{{ group.alerts?.length || 0 }} 条预警</span>
+                  <span class="stat-item critical-count" v-if="group.criticalRiskCount > 0">高风险 {{ group.criticalRiskCount }}</span>
+                  <span class="stat-item high-count" v-if="group.highRiskCount > 0">高风险 {{ group.highRiskCount }}</span>
+                  <span class="stat-item medium-count" v-if="group.mediumRiskCount > 0">中风险 {{ group.mediumRiskCount }}</span>
+                </div>
+              </div>
+              
+              <div class="qs-id-groups">
+                <div v-for="qsGroup in groupAlertsByQsId(group.alerts)" :key="qsGroup.qsId" class="qs-id-group">
+                  <div class="qs-id-header" @click="toggleQsId(qsGroup.qsId)">
+                    <span class="collapse-icon" :class="{ expanded: !collapsedQsIds.has(qsGroup.qsId) }">▶</span>
+                    <span class="qs-id-icon">📱</span>
+                    <span class="qs-id-name">{{ qsGroup.qsId }}</span>
+                    <span class="qs-id-stats">
+                      {{ qsGroup.alerts.length }} 条预警
+                      <span v-if="qsGroup.riskSummary.HIGH > 0 || qsGroup.riskSummary.CRITICAL > 0" class="qs-high-count">高风险 {{ qsGroup.riskSummary.HIGH + qsGroup.riskSummary.CRITICAL }}</span>
+                      <span v-if="qsGroup.riskSummary.MEDIUM > 0" class="qs-medium-count">中风险 {{ qsGroup.riskSummary.MEDIUM }}</span>
+                    </span>
+                  </div>
+                  
+                  <div v-show="!collapsedQsIds.has(qsGroup.qsId)" class="alert-list">
+                    <table>
+                      <thead><tr><th>预警ID</th><th>企业</th><th>等级</th><th>原因</th><th>状态</th><th>动作结果</th></tr></thead>
+                      <tbody>
+                      <tr v-for="item in qsGroup.alerts" :key="item.alertId" :class="{ highlight: query.alertId && String(item.alertId) === String(query.alertId) }">
+                        <td>{{ item.alertId }}</td>
+                        <td>{{ item.companyId }}</td>
+                        <td>
+                          <span :class="{ 'level-high': item.alertLevel === 'HIGH' || item.alertLevel === 'CRITICAL', 'level-medium': item.alertLevel === 'MEDIUM' }">
+                            {{ item.alertLevel }}
+                          </span>
+                        </td>
+                        <td>{{ item.reason }}</td>
+                        <td>{{ item.status }}</td>
+                        <td>{{ item.actionResult }}</td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -95,7 +128,7 @@
               <input v-model="userInfoForm.phone" type="tel" placeholder="请输入手机号" />
             </div>
             <div class="form-actions">
-              <button class="btn-primary" :disabled="loading" @click="updateUserInfo">保存修改</button>
+              <button class="btn-primary" :disabled="loading" @click="handleUpdateUserInfo">保存修改</button>
             </div>
           </div>
         </div>
@@ -175,6 +208,42 @@ const messageList = ref([]);
 const feedbackList = ref([]);
 const detailData = ref({});
 const userInfoForm = reactive({ username: '', email: '', phone: '', role: '' });
+const collapsedQsIds = ref(new Set());
+
+// 按二维码ID分组预警消息
+function groupAlertsByQsId(alerts) {
+  const groups = {};
+  (alerts || []).forEach(alert => {
+    const qsId = alert.qsId || 'unknown';
+    if (!groups[qsId]) {
+      groups[qsId] = {
+        qsId,
+        alerts: [],
+        riskSummary: {
+          HIGH: 0,
+          CRITICAL: 0,
+          MEDIUM: 0,
+          LOW: 0
+        }
+      };
+    }
+    groups[qsId].alerts.push(alert);
+    const level = alert.alertLevel || 'LOW';
+    if (groups[qsId].riskSummary[level] !== undefined) {
+      groups[qsId].riskSummary[level]++;
+    }
+  });
+  return Object.values(groups);
+}
+
+// 切换二维码折叠状态
+function toggleQsId(qsId) {
+  if (collapsedQsIds.value.has(qsId)) {
+    collapsedQsIds.value.delete(qsId);
+  } else {
+    collapsedQsIds.value.add(qsId);
+  }
+}
 
 const query = computed(() => ({
   alertId: route.query.alertId || route.query.eventId || '',
@@ -183,11 +252,25 @@ const query = computed(() => ({
   feedbackId: route.query.feedbackId || ''
 }));
 
-const filteredMessages = computed(() => messageList.value.filter((item) => {
-  if (query.value.alertId && String(item.alertId) !== String(query.value.alertId)) return false;
-  if (query.value.companyId && String(item.companyId) !== String(query.value.companyId)) return false;
+const filteredMessages = computed(() => messageList.value.filter((group) => {
+  // 如果有查询参数，先检查该批次内是否有匹配的预警
+  if (query.value.alertId || query.value.companyId) {
+    const hasMatchingAlert = (group.alerts || []).some(item => {
+      if (query.value.alertId && String(item.alertId) !== String(query.value.alertId)) return false;
+      if (query.value.companyId && String(item.companyId) !== String(query.value.companyId)) return false;
+      return true;
+    });
+    if (!hasMatchingAlert) return false;
+  }
   return true;
-}));
+}).map(group => ({
+  ...group,
+  alerts: (group.alerts || []).filter(item => {
+    if (query.value.alertId && String(item.alertId) !== String(query.value.alertId)) return false;
+    if (query.value.companyId && String(item.companyId) !== String(query.value.companyId)) return false;
+    return true;
+  })
+})).filter(group => group.alerts && group.alerts.length > 0));
 
 const filteredFeedbacks = computed(() => feedbackList.value.filter((item) => {
   if (query.value.qsId && String(item.qsId) !== String(query.value.qsId)) return false;
@@ -237,6 +320,7 @@ async function review(companyId, approved) {
 
 async function loadMessages() {
   const res = await getMessages(token.value);
+  console.log('loadMessages 原始响应:', res);
   messageList.value = res.data || [];
 }
 
@@ -266,7 +350,7 @@ async function loadUserInfo() {
   Object.assign(userInfoForm, res.data);
 }
 
-async function updateUserInfo() {
+async function handleUpdateUserInfo() {
   await withLoading(async () => {
     await updateUserInfo(userInfoForm.email, userInfoForm.phone, token.value);
     await loadUserInfo();
@@ -343,6 +427,140 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.batch-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.batch-group {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.batch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.batch-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-icon {
+  font-size: 18px;
+}
+
+.batch-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.batch-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.stat-item {
+  color: #64748b;
+}
+
+.stat-item.critical-count,
+.stat-item.high-count {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.stat-item.medium-count {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.alert-list {
+  overflow-x: auto;
+}
+
+.alert-list table {
+  margin-bottom: 0;
+}
+
+.qs-id-groups {
+  display: flex;
+  flex-direction: column;
+}
+
+.qs-id-group {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.qs-id-group:last-child {
+  border-bottom: none;
+}
+
+.qs-id-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.qs-id-header:hover {
+  background: #f1f5f9;
+}
+
+.collapse-icon {
+  font-size: 10px;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+  width: 14px;
+  text-align: center;
+}
+
+.collapse-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.qs-id-icon {
+  font-size: 16px;
+}
+
+.qs-id-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  font-family: 'Courier New', monospace;
+}
+
+.qs-id-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
+  margin-left: auto;
+}
+
+.qs-high-count {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.qs-medium-count {
+  color: #f59e0b;
+  font-weight: 500;
 }
 
 .card-header h3 {
@@ -650,6 +868,28 @@ textarea:focus {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+  
+  .batch-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .batch-stats {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .qs-id-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .qs-id-stats {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
   }
   
   .actions {

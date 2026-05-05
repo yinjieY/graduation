@@ -1,0 +1,15 @@
+[network]
+peers = ["127.0.0.1:20200"]
+
+[cryptoMaterial]
+caCert = "./sdk/ca.crt"
+sslCert = "./sdk/sdk.crt"
+sslKey = "./sdk/sdk.key"
+
+[account]
+keyStoreDir = "./account"
+accountFileFormat = "pem"
+
+[blockchain]
+groupId = "0"
+chainId = "0"

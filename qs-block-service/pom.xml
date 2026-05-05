@@ -6,7 +6,6 @@
         <groupId>org.hunau</groupId>
         <artifactId>QSGuard</artifactId>
         <version>1.0-SNAPSHOT</version>
-        <!-- 必须加这一行！指向父工程的pom.xml -->
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -15,19 +14,7 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>qs-block-service</name>
     <description>qs-block-service</description>
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
+
     <properties>
         <java.version>17</java.version>
     </properties>

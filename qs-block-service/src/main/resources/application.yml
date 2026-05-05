@@ -1,6 +1,4 @@
 spring:
-  #  server:(nacos上的配置文件里设置了端口，这里注释掉，避免冲突)
-  #    port: 8085
   application:
     name: qs-block-service
   profiles:
@@ -22,15 +20,26 @@ spring:
 
 app:
   blockchain:
-    provider: fisco3          # fixed for FISCO BCOS 3.6.0
-    node-host: 127.0.0.1
-    node-port: 20200          # verify with your container's exposed RPC port
-    group-id: group0          # keep consistent with chain genesis/config
-    chain-id: chain0          # keep consistent with chain genesis/config
+    # 连接模式: mock(模拟) / fisco(真实链)
+    gateway-mode: fisco
+
+    # 链基础配置
+    group-id: group0
+    chain-id: chain0
     contract-address: "0x31ed5233b81c79d5adddeef991f531a9bbc2ad01"
-    tx-timeout-ms: 10000
-    confirm-blocks: 1
-    cert:
-      ca-crt: "E:/CodeSetting/fisco/node/cert/ca.crt"
-      sdk-crt: "E:/CodeSetting/fisco/node/cert/sdk.crt"
-      sdk-key: "E:/CodeSetting/fisco/node/cert/sdk.key"
+
+    # FISCO-BCOS JSON-RPC配置（连接WSL中的节点）
+    fisco:
+      # WSL中FISCO节点的JSON-RPC地址
+      write-url: http://172.30.147.205:8545
+      verify-url: http://172.30.147.205:8545
+      # 连接超时(毫秒)
+      connect-timeout: 5000
+      # 读取超时(毫秒)
+      read-timeout: 10000
+    
+    # Outbox异步上链配置
+    outbox:
+      max-retries: 3
+      retry-backoff-seconds: 10
+      dispatch-batch-size: 50

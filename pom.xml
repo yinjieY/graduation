@@ -70,9 +70,22 @@
     </dependencyManagement>
 
     <repositories>
+        <!-- Maven中央仓库 -->
         <repository>
             <id>central</id>
             <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        <!-- FISCO-BCOS Maven仓库 -->
+        <repository>
+            <id>FISCO-BCOS</id>
+            <name>FISCO BCOS Maven Repository</name>
+            <url>https://mvnrepo.fisco.org/repository/releases/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
         </repository>
     </repositories>
 

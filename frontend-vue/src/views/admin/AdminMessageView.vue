@@ -76,62 +76,71 @@
           </div>
         </div>
         
-        <div class="grouped-list">
-          <div v-if="groupedMessages.length === 0" class="empty-state">暂无符合条件的消息</div>
+        <div class="batch-groups">
+          <div v-if="filteredMessages.length === 0" class="empty-state">暂无符合条件的消息</div>
           
-          <div 
-            v-for="group in groupedMessages" 
-            :key="group.companyId" 
-            class="company-group"
-          >
-            <div 
-              class="group-header" 
-              @click="toggleGroup(group.companyId)"
-            >
-              <div class="group-info">
-                <span class="company-id">{{ group.companyId }}</span>
-                <span class="alert-count">{{ group.alerts.length }}条预警</span>
-                <span v-if="group.hasHighRisk" class="high-risk-badge">含高风险</span>
+          <div v-for="group in filteredMessages" :key="group.batchId || group.batchName" class="batch-group">
+            <div class="batch-header">
+              <div class="batch-info">
+                <span class="batch-icon">📦</span>
+                <span class="batch-name">{{ group.batchName || group.batchId || '未命名批次' }}</span>
               </div>
-              <div class="group-actions">
-                <span class="expand-icon">{{ expandedGroups.includes(group.companyId) ? '▼' : '▶' }}</span>
+              <div class="batch-stats">
+                <span class="stat-item">{{ group.alerts?.length || 0 }} 条预警</span>
+                <span class="stat-item critical-count" v-if="group.criticalRiskCount > 0">高风险 {{ group.criticalRiskCount }}</span>
+                <span class="stat-item high-count" v-if="group.highRiskCount > 0">高风险 {{ group.highRiskCount }}</span>
+                <span class="stat-item medium-count" v-if="group.mediumRiskCount > 0">中风险 {{ group.mediumRiskCount }}</span>
               </div>
             </div>
             
-            <div 
-              v-show="expandedGroups.includes(group.companyId)" 
-              class="group-content"
-            >
-              <table class="alert-table">
-                <thead>
-                  <tr>
-                    <th>预警ID</th>
-                    <th>等级</th>
-                    <th>原因</th>
-                    <th>状态</th>
-                    <th>动作结果</th>
-                    <th>时间</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="alert in group.alerts" :key="alert.alertId">
-                    <td>{{ alert.alertId }}</td>
-                    <td>
-                      <span :class="getLevelClass(alert.alertLevel)">
-                        {{ getLevelText(alert.alertLevel) }}
-                      </span>
-                    </td>
-                    <td class="reason-cell">{{ alert.reason }}</td>
-                    <td>
-                      <span :class="{ 'status-open': alert.status === 'open', 'status-closed': alert.status === 'closed' }">
-                        {{ alert.status === 'open' ? '待处理' : '已处理' }}
-                      </span>
-                    </td>
-                    <td>{{ alert.actionResult || '-' }}</td>
-                    <td>{{ formatTime(alert.createdAt) }}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="qs-id-groups">
+              <div v-for="qsGroup in groupAlertsByQsId(group.alerts)" :key="qsGroup.qsId" class="qs-id-group">
+                <div class="qs-id-header" @click="toggleQsId(qsGroup.qsId)">
+                  <span class="collapse-icon" :class="{ expanded: !collapsedQsIds.has(qsGroup.qsId) }">▶</span>
+                  <span class="qs-id-icon">📱</span>
+                  <span class="qs-id-name">{{ qsGroup.qsId }}</span>
+                  <span class="qs-id-stats">
+                    {{ qsGroup.alerts.length }} 条预警
+                    <span v-if="qsGroup.riskSummary.HIGH > 0 || qsGroup.riskSummary.CRITICAL > 0" class="qs-high-count">高风险 {{ qsGroup.riskSummary.HIGH + qsGroup.riskSummary.CRITICAL }}</span>
+                    <span v-if="qsGroup.riskSummary.MEDIUM > 0" class="qs-medium-count">中风险 {{ qsGroup.riskSummary.MEDIUM }}</span>
+                  </span>
+                </div>
+                
+                <div v-show="!collapsedQsIds.has(qsGroup.qsId)" class="alert-list">
+                  <table class="alert-table">
+                    <thead>
+                      <tr>
+                        <th>预警ID</th>
+                        <th>企业</th>
+                        <th>等级</th>
+                        <th>原因</th>
+                        <th>状态</th>
+                        <th>动作结果</th>
+                        <th>时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="alert in qsGroup.alerts" :key="alert.alertId">
+                        <td>{{ alert.alertId }}</td>
+                        <td>{{ alert.companyId }}</td>
+                        <td>
+                          <span :class="getLevelClass(alert.alertLevel)">
+                            {{ getLevelText(alert.alertLevel) }}
+                          </span>
+                        </td>
+                        <td class="reason-cell">{{ alert.reason }}</td>
+                        <td>
+                          <span :class="{ 'status-open': alert.status === 'open', 'status-closed': alert.status === 'closed' }">
+                            {{ alert.status === 'open' ? '待处理' : '已处理' }}
+                          </span>
+                        </td>
+                        <td>{{ alert.actionResult || '-' }}</td>
+                        <td>{{ formatTime(alert.createdAt) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -149,7 +158,7 @@ import Layout from '../../components/Layout.vue';
 const loading = ref(false);
 const messages = ref([]);
 const token = ref(getToken('admin'));
-const expandedGroups = ref([]);
+const collapsedQsIds = ref(new Set());
 
 const filters = ref({
   level: '',
@@ -157,82 +166,80 @@ const filters = ref({
   search: ''
 });
 
+// 按二维码ID分组预警消息
+function groupAlertsByQsId(alerts) {
+  const groups = {};
+  (alerts || []).forEach(alert => {
+    const qsId = alert.qsId || 'unknown';
+    if (!groups[qsId]) {
+      groups[qsId] = {
+        qsId,
+        alerts: [],
+        riskSummary: {
+          HIGH: 0,
+          CRITICAL: 0,
+          MEDIUM: 0,
+          LOW: 0
+        }
+      };
+    }
+    groups[qsId].alerts.push(alert);
+    const level = alert.alertLevel || 'LOW';
+    if (groups[qsId].riskSummary[level] !== undefined) {
+      groups[qsId].riskSummary[level]++;
+    }
+  });
+  return Object.values(groups);
+}
+
+// 切换二维码折叠状态
+function toggleQsId(qsId) {
+  if (collapsedQsIds.value.has(qsId)) {
+    collapsedQsIds.value.delete(qsId);
+  } else {
+    collapsedQsIds.value.add(qsId);
+  }
+}
+
+// 获取扁平化的预警列表用于统计
+const flatAlerts = computed(() => {
+  return messages.value.flatMap(batch => batch.alerts || []);
+});
+
 const stats = computed(() => {
-  const critical = messages.value.filter(m => m.alertLevel === 'CRITICAL').length;
-  const high = messages.value.filter(m => m.alertLevel === 'HIGH').length;
-  const medium = messages.value.filter(m => m.alertLevel === 'MEDIUM').length;
-  const open = messages.value.filter(m => m.status === 'open').length;
+  const critical = flatAlerts.value.filter(m => m.alertLevel === 'CRITICAL').length;
+  const high = flatAlerts.value.filter(m => m.alertLevel === 'HIGH').length;
+  const medium = flatAlerts.value.filter(m => m.alertLevel === 'MEDIUM').length;
+  const open = flatAlerts.value.filter(m => m.status === 'open').length;
   return { critical, high, medium, open };
 });
 
 const unreadCount = computed(() => {
-  return messages.value.filter(m => m.status === 'open').length;
+  return flatAlerts.value.filter(m => m.status === 'open').length;
 });
 
 const filteredMessages = computed(() => {
-  let result = [...messages.value];
-  
-  if (filters.value.level) {
-    result = result.filter(m => m.alertLevel === filters.value.level);
-  }
-  
-  if (filters.value.status) {
-    result = result.filter(m => m.status === filters.value.status);
-  }
-  
-  if (filters.value.search) {
-    const search = filters.value.search.toLowerCase();
-    result = result.filter(m => 
-      m.companyId.toLowerCase().includes(search) ||
-      (m.reason && m.reason.toLowerCase().includes(search))
-    );
-  }
-  
-  return result;
-});
-
-const groupedMessages = computed(() => {
-  const groups = {};
-  
-  filteredMessages.value.forEach(msg => {
-    if (!groups[msg.companyId]) {
-      groups[msg.companyId] = {
-        companyId: msg.companyId,
-        alerts: [],
-        hasHighRisk: false
-      };
-    }
-    groups[msg.companyId].alerts.push(msg);
-    if (msg.alertLevel === 'CRITICAL' || msg.alertLevel === 'HIGH') {
-      groups[msg.companyId].hasHighRisk = true;
-    }
-  });
-  
-  return Object.values(groups).sort((a, b) => {
-    if (a.hasHighRisk !== b.hasHighRisk) {
-      return a.hasHighRisk ? -1 : 1;
-    }
-    return b.alerts.length - a.alerts.length;
-  }).map(group => ({
-    ...group,
-    alerts: group.alerts.sort((x, y) => {
-      const levelOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
-      if (levelOrder[x.alertLevel] !== levelOrder[y.alertLevel]) {
-        return levelOrder[x.alertLevel] - levelOrder[y.alertLevel];
+  return messages.value.map(batch => ({
+    ...batch,
+    alerts: (batch.alerts || []).filter(alert => {
+      if (filters.value.level && alert.alertLevel !== filters.value.level) {
+        return false;
       }
-      return new Date(y.createdAt) - new Date(x.createdAt);
+      if (filters.value.status && alert.status !== filters.value.status) {
+        return false;
+      }
+      if (filters.value.search) {
+        const search = filters.value.search.toLowerCase();
+        const matchCompany = alert.companyId.toLowerCase().includes(search);
+        const matchReason = alert.reason && alert.reason.toLowerCase().includes(search);
+        if (!matchCompany && !matchReason) {
+          return false;
+        }
+      }
+      return true;
     })
-  }));
+  })).filter(batch => batch.alerts.length > 0);
 });
-
-function toggleGroup(companyId) {
-  const index = expandedGroups.value.indexOf(companyId);
-  if (index > -1) {
-    expandedGroups.value.splice(index, 1);
-  } else {
-    expandedGroups.value.push(companyId);
-  }
-}
 
 function applyFilters() {}
 
@@ -269,8 +276,7 @@ async function loadMessages() {
   loading.value = true;
   try {
     const res = await getMessages(token.value);
-    const groupedData = res.data || [];
-    messages.value = groupedData.flatMap(batch => batch.alerts || []);
+    messages.value = res.data || [];  // 保持后端分组结构
   } catch (error) {
     console.error('加载系统消息失败:', error);
   } finally {
@@ -490,31 +496,6 @@ onMounted(async () => {
   100% { transform: rotate(360deg); }
 }
 
-.table-wrapper {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-th {
-  text-align: left;
-  padding: 12px 16px;
-  background: #f8fafc;
-  font-weight: 600;
-  color: #334155;
-  border-bottom: 2px solid #e2e8f0;
-}
-
-td {
-  padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #475569;
-}
-
 .empty-state {
   text-align: center;
   color: #94a3b8;
@@ -522,74 +503,140 @@ td {
   font-style: italic;
 }
 
-.grouped-list {
-  margin-top: 8px;
+/* 批次分组样式 */
+.batch-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.company-group {
-  margin-bottom: 8px;
+.batch-group {
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
-.group-header {
+.batch-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 16px;
+  padding: 16px 20px;
   background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.batch-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-icon {
+  font-size: 18px;
+}
+
+.batch-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.batch-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.stat-item {
+  color: #64748b;
+}
+
+.stat-item.critical-count,
+.stat-item.high-count {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.stat-item.medium-count {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+/* 二维码分组样式 */
+.qs-id-groups {
+  display: flex;
+  flex-direction: column;
+}
+
+.qs-id-group {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.qs-id-group:last-child {
+  border-bottom: none;
+}
+
+.qs-id-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #fafafa;
   cursor: pointer;
   transition: background 0.2s ease;
 }
 
-.group-header:hover {
+.qs-id-header:hover {
   background: #f1f5f9;
 }
 
-.group-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.collapse-icon {
+  font-size: 10px;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+  width: 14px;
+  text-align: center;
 }
 
-.company-id {
+.collapse-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.qs-id-icon {
+  font-size: 16px;
+}
+
+.qs-id-name {
+  font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
-  font-size: 15px;
+  color: #475569;
+  font-family: 'Courier New', monospace;
 }
 
-.alert-count {
-  font-size: 13px;
-  color: #64748b;
-  background: #e2e8f0;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.high-risk-badge {
+.qs-id-stats {
+  display: flex;
+  gap: 12px;
   font-size: 12px;
-  color: #dc2626;
-  background: #fef2f2;
-  padding: 2px 8px;
-  border-radius: 4px;
+  color: #64748b;
+  margin-left: auto;
+}
+
+.qs-high-count {
+  color: #ef4444;
   font-weight: 500;
 }
 
-.group-actions {
-  display: flex;
-  align-items: center;
+.qs-medium-count {
+  color: #f59e0b;
+  font-weight: 500;
 }
 
-.expand-icon {
-  font-size: 12px;
-  color: #64748b;
-  transition: transform 0.2s ease;
+.alert-list {
+  overflow-x: auto;
 }
 
-.group-content {
-  padding: 0;
-  background: white;
+.alert-list table {
+  margin-bottom: 0;
 }
 
 .alert-table {
@@ -693,6 +740,28 @@ td {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+  
+  .batch-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .batch-stats {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .qs-id-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .qs-id-stats {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
   }
   
   .header-actions {
