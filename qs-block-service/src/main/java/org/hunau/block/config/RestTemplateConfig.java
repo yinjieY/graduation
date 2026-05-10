@@ -9,10 +9,10 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 public class RestTemplateConfig {
 
-    @Value("${app.blockchain.fisco.connect-timeout:5000}")
+    @Value("${app.blockchain.webase.connect-timeout:5000}")
     private int connectTimeout;
 
-    @Value("${app.blockchain.fisco.read-timeout:10000}")
+    @Value("${app.blockchain.webase.read-timeout:10000}")
     private int readTimeout;
 
     @Bean

@@ -3,12 +3,14 @@ package org.hunau.block.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hunau.block.chain.BlockchainGateway;
 import org.hunau.block.model.ProofRecord;
 import org.hunau.block.service.ProofService;
 import org.hunau.common.model.R;
 import org.hunau.common.exception.BusinessException;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -17,11 +19,23 @@ import java.util.Map;
 public class ProofController {
 
     private final ProofService proofService;
+    private final BlockchainGateway blockchainGateway;
     private final ObjectMapper objectMapper;
 
-    public ProofController(ProofService proofService) {
+    public ProofController(ProofService proofService, BlockchainGateway blockchainGateway) {
         this.proofService = proofService;
+        this.blockchainGateway = blockchainGateway;
         this.objectMapper = new ObjectMapper().configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true);
+    }
+    
+    @GetMapping("/diagnose")
+    public R<Map<String, Object>> diagnose() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("gatewayClass", blockchainGateway.getClass().getName());
+        data.put("gatewaySimpleName", blockchainGateway.getClass().getSimpleName());
+        data.put("isMock", blockchainGateway.getClass().getSimpleName().contains("Mock"));
+        data.put("isFisco", blockchainGateway.getClass().getSimpleName().contains("Fisco"));
+        return R.ok(data);
     }
 
     @PostMapping("/qr")

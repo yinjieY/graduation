@@ -20,26 +20,29 @@ spring:
 
 app:
   blockchain:
-    # 连接模式: mock(模拟) / fisco(真实链)
-    gateway-mode: fisco
+    # 连接模式: mock(模拟) / webase-sdk(WeBASE-SDK)
+    gateway-mode: ${APP_BLOCKCHAIN_GATEWAY_MODE:webase-sdk}
 
     # 链基础配置
-    group-id: group0
-    chain-id: chain0
-    contract-address: "0x31ed5233b81c79d5adddeef991f531a9bbc2ad01"
+    group-id: ${APP_BLOCKCHAIN_GROUP_ID:group1}
+    chain-id: ${APP_BLOCKCHAIN_CHAIN_ID:chain0}
+    contract-address: ${APP_BLOCKCHAIN_CONTRACT_ADDRESS:0x7efe685eb925a96eb00258525fe89d1e5c179c50}
 
-    # FISCO-BCOS JSON-RPC配置（连接WSL中的节点）
-    fisco:
-      # WSL中FISCO节点的JSON-RPC地址
-      write-url: http://172.30.147.205:8545
-      verify-url: http://172.30.147.205:8545
+    # WeBASE-SDK配置（通过WeBASE-Front调用链）
+    webase:
+      # 示例: http://127.0.0.1:5002/WeBASE-Front
+      base-url: ${APP_BLOCKCHAIN_WEBASE_BASE_URL:http://192.168.230.131:5002/WeBASE-Front}
+      # WeBASE前置账号地址（从WeBASE平台获取）
+      user: ${APP_BLOCKCHAIN_WEBASE_USER:0x7c1506354cbdbc63a210dd07e1d7171235f18276}
+      # group0/group1 或数字都可
+      group-id: ${APP_BLOCKCHAIN_WEBASE_GROUP_ID:${APP_BLOCKCHAIN_GROUP_ID:group1}}
       # 连接超时(毫秒)
-      connect-timeout: 5000
+      connect-timeout: ${APP_BLOCKCHAIN_WEBASE_CONNECT_TIMEOUT:5000}
       # 读取超时(毫秒)
-      read-timeout: 10000
+      read-timeout: ${APP_BLOCKCHAIN_WEBASE_READ_TIMEOUT:10000}
     
     # Outbox异步上链配置
     outbox:
-      max-retries: 3
-      retry-backoff-seconds: 10
-      dispatch-batch-size: 50
+      max-retries: ${APP_BLOCKCHAIN_OUTBOX_MAX_RETRIES:3}
+      retry-backoff-seconds: ${APP_BLOCKCHAIN_OUTBOX_RETRY_BACKOFF_SECONDS:10}
+      dispatch-batch-size: ${APP_BLOCKCHAIN_OUTBOX_DISPATCH_BATCH_SIZE:50}

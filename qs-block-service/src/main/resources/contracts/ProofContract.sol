@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.4.25;
 
 contract ProofContract {
     // 存证结构
@@ -35,11 +35,11 @@ contract ProofContract {
 
     // 保存存证
     function save(
-        string calldata businessKey,
-        string calldata proofType,
-        string calldata hash,
-        string calldata payload
-    ) external {
+        string memory businessKey,
+        string memory proofType,
+        string memory hash,
+        string memory payload
+    ) public {
         require(bytes(businessKey).length > 0, "businessKey cannot be empty");
         require(bytes(hash).length > 0, "hash cannot be empty");
         require(!exists[businessKey], "Proof already exists for this businessKey");
@@ -60,9 +60,9 @@ contract ProofContract {
 
     // 验证存证
     function verify(
-        string calldata businessKey,
-        string calldata hash
-    ) external view returns (bool) {
+        string memory businessKey,
+        string memory hash
+    ) public view returns (bool) {
         if (!exists[businessKey]) {
             return false;
         }
@@ -74,7 +74,7 @@ contract ProofContract {
     }
 
     // 获取存证详情
-    function getProof(string calldata businessKey) external view returns (
+    function getProof(string memory businessKey) public view returns (
         string memory proofType,
         string memory hash,
         string memory payload,
@@ -94,7 +94,7 @@ contract ProofContract {
     }
 
     // 检查存证是否存在
-    function hasProof(string calldata businessKey) external view returns (bool) {
+    function hasProof(string memory businessKey) public view returns (bool) {
         return exists[businessKey];
     }
 }
