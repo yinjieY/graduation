@@ -24,18 +24,27 @@
               <thead><tr><th>预警ID</th><th>二维码</th><th>等级</th><th>原因</th><th>动作结果</th><th>状态</th></tr></thead>
               <tbody>
               <tr v-if="messages.length === 0"><td colspan="6" class="empty-state">暂无消息</td></tr>
-              <tr v-for="item in messages" :key="item.alertId">
-                <td>{{ item.alertId }}</td>
-                <td>{{ item.qsId }}</td>
-                <td>
-                  <span :class="{ 'level-high': item.alertLevel === 'HIGH', 'level-medium': item.alertLevel === 'MEDIUM' }">
-                    {{ item.alertLevel }}
-                  </span>
-                </td>
-                <td>{{ item.reason }}</td>
-                <td>{{ item.actionResult }}</td>
-                <td>{{ item.status }}</td>
-              </tr>
+              <template v-for="group in groupedMessages" :key="group.qsId">
+                <tr class="group-row" @click="toggleExpanded(group.qsId)">
+                  <td colspan="6" class="group-cell">
+                    <span class="group-toggle">{{ isExpanded(group.qsId) ? '▼' : '▶' }}</span>
+                    <span class="group-label">二维码：{{ group.qsId }}</span>
+                    <span class="group-count">共 {{ group.items.length }} 条</span>
+                  </td>
+                </tr>
+                <tr v-for="item in group.items" v-if="isExpanded(group.qsId)" :key="item.alertId">
+                  <td>{{ item.alertId }}</td>
+                  <td>{{ item.qsId }}</td>
+                  <td>
+                    <span :class="{ 'level-high': item.alertLevel === 'HIGH', 'level-medium': item.alertLevel === 'MEDIUM' }">
+                      {{ item.alertLevel }}
+                    </span>
+                  </td>
+                  <td>{{ item.reason }}</td>
+                  <td>{{ item.actionResult }}</td>
+                  <td>{{ item.status }}</td>
+                </tr>
+              </template>
               </tbody>
             </table>
           </div>
@@ -75,7 +84,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { getMessages } from '../api/alert';
 import { getFeedbackList } from '../api/feedback';
 import { clearToken, getToken } from '../api/session';
@@ -89,6 +98,50 @@ const notice = ref('');
 const noticeType = ref('info');
 const messages = ref([]);
 const feedbacks = ref([]);
+const expandedQs = ref(new Set());
+
+function normalizeAlertMessages(payload) {
+  if (!Array.isArray(payload)) {
+    if (payload && Array.isArray(payload.alerts)) {
+      return payload.alerts;
+    }
+    return [];
+  }
+  const hasGroups = payload.some(item => item && Array.isArray(item.alerts));
+  if (hasGroups) {
+    return payload.flatMap(item => (Array.isArray(item.alerts) ? item.alerts : []));
+  }
+  return payload;
+}
+
+const groupedMessages = computed(() => {
+  const groups = new Map();
+  messages.value.forEach((item) => {
+    const qsId = item?.qsId || '未绑定二维码';
+    if (!groups.has(qsId)) {
+      groups.set(qsId, []);
+    }
+    groups.get(qsId).push(item);
+  });
+  return Array.from(groups.entries()).map(([qsId, items]) => ({
+    qsId,
+    items
+  }));
+});
+
+function isExpanded(qsId) {
+  return expandedQs.value.has(qsId);
+}
+
+function toggleExpanded(qsId) {
+  const next = new Set(expandedQs.value);
+  if (next.has(qsId)) {
+    next.delete(qsId);
+  } else {
+    next.add(qsId);
+  }
+  expandedQs.value = next;
+}
 
 function setNotice(message, type = 'info') {
   notice.value = message;
@@ -124,7 +177,7 @@ async function loadMessages() {
       console.log('调用 getMessages，token:', token.value);
       const res = await getMessages(token.value);
       console.log('getMessages 返回结果:', res);
-      messages.value = res.data || [];
+      messages.value = normalizeAlertMessages(res.data || res);
     } catch (error) {
       console.error('加载消息失败:', error);
       throw new Error('加载消息失败，请稍后重试');
@@ -309,6 +362,31 @@ td {
   font-size: 12px;
   color: #64748b;
   border: 1px solid #e2e8f0;
+}
+
+.group-row {
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.group-cell {
+  font-weight: 600;
+  color: #334155;
+}
+
+.group-toggle {
+  display: inline-block;
+  width: 20px;
+  color: #64748b;
+}
+
+.group-label {
+  margin-right: 12px;
+}
+
+.group-count {
+  color: #64748b;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {

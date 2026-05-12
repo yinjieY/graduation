@@ -24,7 +24,7 @@ public class ResourceSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/scan/**", "/trace/scan/**", "/trace/query/**", "/trace/company/init", "/trace/qs/image/**").permitAll()
+                        .requestMatchers("/scan/**", "/trace/scan/**", "/trace/query/**", "/trace/company/init", "/trace/qs/image/**", "/trace/qs/*/status/system").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthFilter(), UsernamePasswordAuthenticationFilter.class);

@@ -8,6 +8,7 @@ public class FeedbackMessageRequest {
     private String feedbackType;
     private Double complaintRate;
     private String riskLevel;
+    private Boolean forceNotify;
 
     public String getFeedbackId() {
         return feedbackId;
@@ -55,5 +56,13 @@ public class FeedbackMessageRequest {
 
     public void setRiskLevel(String riskLevel) {
         this.riskLevel = riskLevel;
+    }
+
+    public Boolean getForceNotify() {
+        return forceNotify;
+    }
+
+    public void setForceNotify(Boolean forceNotify) {
+        this.forceNotify = forceNotify;
     }
 }

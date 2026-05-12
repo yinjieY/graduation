@@ -28,14 +28,14 @@ export function getFeedbackDetail(feedbackId, token) {
   });
 }
 
-export function updateFeedbackStatus(feedbackId, status, handleNote, token) {
+export function updateFeedbackStatus(feedbackId, status, handleNote, freezeQrcode, notifyCompany, token) {
   return apiFetch(`/scan/feedback/status/${encodeURIComponent(feedbackId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(token)
     },
-    body: JSON.stringify({ status, handleNote })
+    body: JSON.stringify({ status, handleNote, freezeQrcode, notifyCompany })
   });
 }
 

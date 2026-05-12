@@ -146,17 +146,22 @@
               <thead><tr><th>反馈编号</th><th>二维码</th><th>企业</th><th>类型</th><th>风险</th><th>状态</th><th>提交IP</th><th>操作</th></tr></thead>
               <tbody>
               <tr v-if="filteredFeedbacks.length === 0"><td colspan="8" class="empty-state">暂无反馈数据</td></tr>
-              <tr v-for="item in filteredFeedbacks" :key="item.feedbackId" :class="{ highlight: query.feedbackId && String(item.feedbackId) === String(query.feedbackId) }">
+              <tr
+                v-for="item in filteredFeedbacks"
+                :key="item.feedbackId"
+                :class="[rowStatusClass(item.status), { highlight: query.feedbackId && String(item.feedbackId) === String(query.feedbackId), selected: String(item.feedbackId) === String(detailForm.feedbackId) }]"
+                @click="loadDetail(item.feedbackId)"
+              >
                 <td>{{ item.feedbackId }}</td>
                 <td>{{ item.qsId }}</td>
                 <td>{{ item.companyId }}</td>
                 <td>{{ item.feedbackType }}</td>
                 <td>{{ item.riskLevel }}</td>
                 <td>
-                  <span class="status-badge">{{ item.status }}</span>
+                  <span class="status-badge" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</span>
                 </td>
                 <td>{{ item.submitterIpMasked || '-' }}</td>
-                <td class="actions">
+                <td class="actions" @click.stop>
                   <button class="btn-primary" :disabled="loading" @click="loadDetail(item.feedbackId)">详情</button>
                   <button class="btn-secondary" :disabled="loading" @click="updateStatus(item.feedbackId, 'ACCEPTED')">受理</button>
                   <button class="btn-secondary" :disabled="loading" @click="updateStatus(item.feedbackId, 'REJECTED')">驳回</button>
@@ -173,14 +178,56 @@
               <input v-model="detailForm.feedbackId" placeholder="请输入反馈编号查阅" />
               <button class="btn-primary" :disabled="loading" @click="loadDetail(detailForm.feedbackId)">加载详情</button>
             </div>
-            <textarea v-model="detailForm.handleNote" placeholder="处理备注（结案时将附带 submitterIp + 当前二维码状态）"></textarea>
-            <div v-if="Object.keys(detailData).length > 0" class="detail-data">
-              <pre>{{ JSON.stringify(detailData, null, 2) }}</pre>
+            <div class="detail-summary" v-if="selectedFeedback">
+              <div class="summary-item">
+                <span class="summary-label">反馈编号</span>
+                <span class="summary-value">{{ selectedFeedback.feedbackId || '-' }}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">二维码</span>
+                <span class="summary-value">{{ selectedFeedback.qsId || '-' }}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">企业</span>
+                <span class="summary-value">{{ selectedFeedback.companyId || '-' }}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">类型</span>
+                <span class="summary-value">{{ selectedFeedback.feedbackType || '-' }}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">风险</span>
+                <span class="summary-value">{{ selectedFeedback.riskLevel || '-' }}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">状态</span>
+                <span class="status-badge" :class="statusClass(selectedFeedback.status)">{{ statusLabel(selectedFeedback.status) }}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">地区</span>
+                <span class="summary-value">{{ selectedFeedback.region || '-' }}</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">提交IP</span>
+                <span class="summary-value">{{ selectedFeedback.submitterIpMasked || selectedFeedback.submitterIp || '-' }}</span>
+              </div>
             </div>
-            <div v-else class="empty-detail">
-              请选择或输入反馈编号加载详情数据
+            <div class="detail-actions" v-if="detailForm.feedbackId">
+              <button class="btn-primary" :disabled="loading" @click="updateStatus(detailForm.feedbackId, 'ACCEPTED')">受理</button>
+              <button class="btn-secondary" :disabled="loading" @click="updateStatus(detailForm.feedbackId, 'REJECTED')">驳回</button>
+              <button class="btn-danger" :disabled="loading" @click="updateStatus(detailForm.feedbackId, 'CLOSED')">结案</button>
             </div>
-          </div>
+             <textarea v-model="detailForm.handleNote" placeholder="处理备注（结案时将附带 submitterIp + 当前二维码状态）"></textarea>
+            <div class="detail-data" v-if="Object.keys(detailData).length > 0">
+              <button class="btn-link" type="button" @click="showRawDetail = !showRawDetail">
+                {{ showRawDetail ? '收起原始数据' : '展开原始数据' }}
+              </button>
+              <pre v-if="showRawDetail">{{ JSON.stringify(detailData, null, 2) }}</pre>
+            </div>
+             <div v-else class="empty-detail">
+               请选择或输入反馈编号加载详情数据
+             </div>
+           </div>
         </div>
       </div>
     </div>
@@ -207,6 +254,8 @@ const pendingList = ref([]);
 const messageList = ref([]);
 const feedbackList = ref([]);
 const detailData = ref({});
+const selectedFeedback = ref(null);
+const showRawDetail = ref(false);
 const userInfoForm = reactive({ username: '', email: '', phone: '', role: '' });
 const collapsedQsIds = ref(new Set());
 
@@ -273,13 +322,65 @@ const filteredMessages = computed(() => messageList.value.filter((group) => {
 })).filter(group => group.alerts && group.alerts.length > 0));
 
 const filteredFeedbacks = computed(() => feedbackList.value.filter((item) => {
-  if (query.value.qsId && String(item.qsId) !== String(query.value.qsId)) return false;
-  if (query.value.companyId && String(item.companyId) !== String(query.value.companyId)) return false;
-  if (query.value.feedbackId && String(item.feedbackId) !== String(query.value.feedbackId)) return false;
-  return true;
-}));
+    if (query.value.qsId && String(item.qsId) !== String(query.value.qsId)) return false;
+    if (query.value.companyId && String(item.companyId) !== String(query.value.companyId)) return false;
+    if (query.value.feedbackId && String(item.feedbackId) !== String(query.value.feedbackId)) return false;
+    return true;
+  }));
 
-function setNotice(message, type = 'info') {
+const statusLabelMap = {
+  ACCEPTED: '受理',
+  REJECTED: '驳回',
+  CLOSED: '结案',
+  PENDING: '待处理'
+};
+
+function normalizeStatus(status) {
+  const raw = String(status || '').trim();
+  if (!raw) return '';
+  if (raw === '受理') return 'ACCEPTED';
+  if (raw === '驳回') return 'REJECTED';
+  if (raw === '结案') return 'CLOSED';
+  if (raw === '待处理') return 'PENDING';
+  return raw.toUpperCase();
+}
+
+function statusLabel(status) {
+  const normalized = normalizeStatus(status);
+  return statusLabelMap[normalized] || status || '-';
+}
+
+function statusClass(status) {
+  switch (normalizeStatus(status)) {
+    case 'ACCEPTED':
+      return 'status-accepted';
+    case 'REJECTED':
+      return 'status-rejected';
+    case 'CLOSED':
+      return 'status-closed';
+    case 'PENDING':
+      return 'status-pending';
+    default:
+      return 'status-unknown';
+  }
+}
+
+function rowStatusClass(status) {
+  switch (normalizeStatus(status)) {
+    case 'ACCEPTED':
+      return 'row-accepted';
+    case 'REJECTED':
+      return 'row-rejected';
+    case 'CLOSED':
+      return 'row-closed';
+    case 'PENDING':
+      return 'row-pending';
+    default:
+      return '';
+  }
+}
+
+ function setNotice(message, type = 'info') {
   notice.value = message;
   noticeType.value = type;
   if (message) {
@@ -334,10 +435,15 @@ async function loadDetail(feedbackId) {
   const res = await getFeedbackDetail(feedbackId, token.value);
   detailData.value = res.data || {};
   detailForm.feedbackId = feedbackId;
+  selectedFeedback.value = detailData.value.feedbackId ? detailData.value : feedbackList.value.find(item => String(item.feedbackId) === String(feedbackId)) || null;
+  showRawDetail.value = false;
 }
 
 async function updateStatus(feedbackId, status) {
-  if (!feedbackId) return;
+  if (!feedbackId) {
+    setNotice('请先选择需要处理的反馈', 'error');
+    return;
+  }
   await withLoading(async () => {
     await updateFeedbackStatus(feedbackId, status, detailForm.handleNote, token.value);
     await loadFeedbacks();
@@ -669,10 +775,62 @@ td {
   border: 1px solid #e2e8f0;
 }
 
-.actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.status-badge.status-accepted {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.status-badge.status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.status-badge.status-closed {
+  background: #e2e8f0;
+  color: #475569;
+  border-color: #cbd5f5;
+}
+
+.status-badge.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.status-badge.status-unknown {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.row-accepted {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.row-rejected {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.row-closed {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.row-pending {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.selected {
+  outline: 2px solid rgba(59, 130, 246, 0.35);
+  outline-offset: -2px;
+}
+
+.card-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #334155;
+  margin: 0;
 }
 
 .btn-primary {
@@ -729,9 +887,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.highlight {
-  background-color: rgba(59, 130, 246, 0.05);
-}
 
 .detail-section {
   margin-top: 32px;
@@ -902,5 +1057,52 @@ textarea:focus {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.summary-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.summary-label {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.summary-value {
+  font-size: 14px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
 }
 </style>

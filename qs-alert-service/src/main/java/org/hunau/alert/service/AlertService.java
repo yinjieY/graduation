@@ -392,8 +392,15 @@ public class AlertService {
 
         String riskLevel = request.getRiskLevel().trim().toUpperCase(Locale.ROOT);
         int alertLevel = toAlertLevelByText(riskLevel);
-        if (alertLevel < 0) {
-            return R.fail("riskLevel仅支持 HIGH/MEDIUM");
+        
+        boolean isForceNotify = Boolean.TRUE.equals(request.getForceNotify());
+        if ("LOW".equals(riskLevel) && !isForceNotify) {
+            log.info("反馈风险等级为LOW，跳过通知: qsId={}, companyId={}", request.getQsId(), request.getCompanyId());
+            return R.ok(java.util.Map.of("skipped", true, "reason", "风险等级为LOW，无需通知"));
+        }
+        
+        if ("LOW".equals(riskLevel) && isForceNotify) {
+            log.info("反馈风险等级为LOW，但强制通知: qsId={}, companyId={}", request.getQsId(), request.getCompanyId());
         }
 
         double complaintRate = Optional.ofNullable(request.getComplaintRate()).orElse(0.0);
@@ -828,7 +835,10 @@ public class AlertService {
         if ("MEDIUM".equals(riskLevel)) {
             return 2;
         }
-        return -1;
+        if ("LOW".equals(riskLevel)) {
+            return 3;
+        }
+        return 2; // 默认降级为 MEDIUM
     }
 
     private String safeText(String value) {

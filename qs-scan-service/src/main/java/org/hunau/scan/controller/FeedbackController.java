@@ -74,6 +74,8 @@ public class FeedbackController {
                 feedbackId,
                 request == null ? null : request.getStatus(),
                 request == null ? null : request.getHandleNote(),
+                request == null ? null : request.getFreezeQrcode(),
+                request == null ? null : request.getNotifyCompany(),
                 role,
                 operator,
                 companyId

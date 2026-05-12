@@ -5,6 +5,8 @@ import org.hunau.common.util.AssertUtil;
 import org.hunau.scan.client.AlertFeignClient;
 import org.hunau.scan.client.BlockFeignClient;
 import org.hunau.scan.client.TraceFeignClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -36,6 +38,8 @@ public class FeedbackService {
     private final TraceFeignClient traceFeignClient;
     private final AlertFeignClient alertFeignClient;
     private final BlockFeignClient blockFeignClient;
+
+    private static final Logger log = LoggerFactory.getLogger(FeedbackService.class);
 
     @Value("${app.feedback.image-dir:data/feedback}")
     private String imageDir;
@@ -310,7 +314,7 @@ public class FeedbackService {
         return R.ok(row);
     }
 
-    public R<Map<String, Object>> updateStatus(String feedbackId, String status, String handleNote, String role, String operator, String companyId) {
+    public R<Map<String, Object>> updateStatus(String feedbackId, String status, String handleNote, Boolean freezeQrcode, Boolean notifyCompany, String role, String operator, String companyId) {
         AssertUtil.notEmpty(feedbackId, "feedbackId不能为空");
         AssertUtil.notEmpty(status, "status不能为空");
         String normalizedRole = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
@@ -377,6 +381,72 @@ public class FeedbackService {
         result.put("handleUser", safeText(operator));
         result.put("handleNote", note);
         result.put("companyId", safeText(companyId));
+
+        if (Boolean.TRUE.equals(freezeQrcode)) {
+            String qsId = String.valueOf(current.get("qsId"));
+            try {
+                log.info("尝试冻结二维码: feedbackId={}, qsId={}", feedbackId, qsId);
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("status", "frozen");
+                R<?> resp = traceFeignClient.changeStatus(qsId, body);
+                if (resp != null && resp.getCode() == 200) {
+                    result.put("freezeSuccess", true);
+                    log.info("二维码冻结成功: qsId={}", qsId);
+                } else {
+                    result.put("freezeSuccess", false);
+                    result.put("freezeError", resp != null ? resp.getMsg() : "未知错误");
+                    log.warn("二维码冻结失败: qsId={}, error={}", qsId, result.get("freezeError"));
+                }
+            } catch (Exception ex) {
+                result.put("freezeSuccess", false);
+                result.put("freezeError", ex.getMessage());
+                log.error("二维码冻结异常: qsId={}, error={}", qsId, ex.getMessage(), ex);
+            }
+        }
+
+        if (Boolean.TRUE.equals(notifyCompany)) {
+            try {
+                log.info("尝试通知企业: feedbackId={}", feedbackId);
+                // 先查询完整反馈记录
+                Map<String, Object> feedbackDetail = jdbcTemplate.queryForObject(
+                        "SELECT qs_id, company_id, feedback_type, complaint_rate, risk_level FROM feedback_record WHERE feedback_id = ?",
+                        (rs, rowNum) -> {
+                            Map<String, Object> m = new LinkedHashMap<>();
+                            m.put("qsId", rs.getString("qs_id"));
+                            m.put("companyId", rs.getString("company_id"));
+                            m.put("feedbackType", rs.getString("feedback_type"));
+                            m.put("complaintRate", rs.getDouble("complaint_rate"));
+                            m.put("riskLevel", rs.getString("risk_level"));
+                            return m;
+                        },
+                        feedbackId.trim()
+                );
+                
+                Map<String, Object> msgBody = new LinkedHashMap<>();
+                msgBody.put("feedbackId", feedbackId.trim());
+                msgBody.put("qsId", String.valueOf(feedbackDetail.get("qsId")));
+                msgBody.put("companyId", String.valueOf(feedbackDetail.get("companyId")));
+                msgBody.put("feedbackType", String.valueOf(feedbackDetail.get("feedbackType")));
+                msgBody.put("complaintRate", feedbackDetail.get("complaintRate"));
+                msgBody.put("riskLevel", String.valueOf(feedbackDetail.get("riskLevel")));
+                msgBody.put("forceNotify", true);
+                
+                R<?> resp = alertFeignClient.createFeedbackMessage(msgBody);
+                if (resp != null && resp.getCode() == 200) {
+                    result.put("notifySuccess", true);
+                    log.info("企业通知成功: feedbackId={}", feedbackId);
+                } else {
+                    result.put("notifySuccess", false);
+                    result.put("notifyError", resp != null ? resp.getMsg() : "未知错误");
+                    log.warn("企业通知失败: feedbackId={}, error={}", feedbackId, result.get("notifyError"));
+                }
+            } catch (Exception ex) {
+                result.put("notifySuccess", false);
+                result.put("notifyError", ex.getMessage());
+                log.error("企业通知异常: feedbackId={}, error={}", feedbackId, ex.getMessage(), ex);
+            }
+        }
+
         return R.ok(result);
     }
 
