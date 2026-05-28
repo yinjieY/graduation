@@ -19,7 +19,7 @@ public class MockFiscoBcosGateway implements BlockchainGateway {
     }
 
     @Override
-    public boolean verifyProof(String businessKey, String hash, String txHash) {
+    public boolean verifyProof(String businessKey, String proofType, String hash, String txHash) {
         return txHash != null && !txHash.isBlank() && businessKey != null && hash != null;
     }
 }

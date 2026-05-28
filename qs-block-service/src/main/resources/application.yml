@@ -26,7 +26,7 @@ app:
     # 链基础配置
     group-id: ${APP_BLOCKCHAIN_GROUP_ID:group1}
     chain-id: ${APP_BLOCKCHAIN_CHAIN_ID:chain0}
-    contract-address: ${APP_BLOCKCHAIN_CONTRACT_ADDRESS:0x7efe685eb925a96eb00258525fe89d1e5c179c50}
+    contract-address: ${APP_BLOCKCHAIN_CONTRACT_ADDRESS:0xc80e0d17b44192dd5efec76ba5f21cdf700a648c}
 
     # WeBASE-SDK配置（通过WeBASE-Front调用链）
     webase:

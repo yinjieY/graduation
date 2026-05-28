@@ -66,9 +66,10 @@ public class FiscoProxyController {
         try {
             Map<String, Object> result = new HashMap<>();
             String businessKey = String.valueOf(request.getOrDefault("businessKey", "")).trim();
+            String proofType = String.valueOf(request.getOrDefault("proofType", "")).trim();
             String hash = String.valueOf(request.getOrDefault("hash", "")).trim();
             String txHash = String.valueOf(request.getOrDefault("txHash", "")).trim();
-            boolean verified = blockchainGateway.verifyProof(businessKey, hash, txHash);
+            boolean verified = blockchainGateway.verifyProof(businessKey, proofType, hash, txHash);
 
             result.put("verified", verified);
             result.put("success", true);

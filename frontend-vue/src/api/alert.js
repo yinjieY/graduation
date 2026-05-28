@@ -156,6 +156,17 @@ export function updateRuleStatus(ruleId, status, token) {
   });
 }
 
+export function updateRuleWeight(ruleId, scoreWeight, token) {
+  return apiFetch(`/alert/rules/${encodeURIComponent(ruleId)}/weight`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(token)
+    },
+    body: JSON.stringify({ scoreWeight })
+  });
+}
+
 export function reloadRules(token) {
   return apiFetch('/alert/rules/reload', {
     method: 'POST',

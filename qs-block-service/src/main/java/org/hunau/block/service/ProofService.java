@@ -10,6 +10,8 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -89,12 +91,21 @@ public class ProofService {
                 now
         );
 
-        // Try once immediately, then rely on scheduled dispatcher for retries.
-        processOutboxByProofId(proofId);
+        // After transaction commit, trigger async chain write via outbox dispatcher
+        long capturedProofId = proofId;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    processOutboxByProofId(capturedProofId);
+                } catch (Exception ignored) {
+                }
+            }
+        });
         return getById(proofId);
     }
 
-    public boolean verify(String businessKey, String hash) {
+    public boolean verify(String businessKey, String proofType, String hash) {
         ProofRecord record = findLatestByBusinessKeyAndHash(businessKey, hash);
         if (record == null) {
             return false;
@@ -102,10 +113,10 @@ public class ProofService {
         if (!STATUS_SUCCESS.equals(record.getChainStatus())) {
             return false;
         }
-        return blockchainGateway.verifyProof(record.getBusinessKey(), record.getHash(), record.getTxHash());
+        return blockchainGateway.verifyProof(record.getBusinessKey(), proofType, record.getHash(), record.getTxHash());
     }
 
-    public Map<String, Object> verifyDetail(String businessKey, String hash) {
+    public Map<String, Object> verifyDetail(String businessKey, String proofType, String hash) {
         ProofRecord record = findLatestByBusinessKeyAndHash(businessKey, hash);
         Map<String, Object> data = new HashMap<>();
         data.put("businessKey", businessKey);
@@ -118,7 +129,7 @@ public class ProofService {
         }
 
         boolean chainVerified = STATUS_SUCCESS.equals(record.getChainStatus())
-                && blockchainGateway.verifyProof(record.getBusinessKey(), record.getHash(), record.getTxHash());
+                && blockchainGateway.verifyProof(record.getBusinessKey(), proofType, record.getHash(), record.getTxHash());
         data.put("localExists", true);
         data.put("chainStatus", record.getChainStatus());
         data.put("txHash", record.getTxHash());

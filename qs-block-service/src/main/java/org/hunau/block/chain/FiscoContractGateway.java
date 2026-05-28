@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -26,6 +27,8 @@ public class FiscoContractGateway implements BlockchainGateway {
     private static final Logger log = LoggerFactory.getLogger(FiscoContractGateway.class);
 
     private final RestTemplate restTemplate;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.blockchain.webase.base-url}")
     private String webaseBaseUrl;
@@ -51,6 +54,7 @@ public class FiscoContractGateway implements BlockchainGateway {
         )),
         createVerifyAbi("verify", Arrays.asList(
             createParam("businessKey", "string"),
+            createParam("proofType", "string"),
             createParam("hash", "string")
         ))
     );
@@ -113,6 +117,7 @@ public class FiscoContractGateway implements BlockchainGateway {
                     Collections.singletonList("/trans/handle"),
                     request
             );
+            log.info("WeBASE write原始响应: {}", response);
 
             String txHash = extractString(response,
                     "transactionHash", "txHash", "transHash", "result", "hash");
@@ -152,9 +157,9 @@ public class FiscoContractGateway implements BlockchainGateway {
     }
 
     @Override
-    public boolean verifyProof(String businessKey, String hash, String txHash) {
+    public boolean verifyProof(String businessKey, String proofType, String hash, String txHash) {
         try {
-            log.info("WeBASE验证存证: businessKey={}, hash={}", businessKey, hash);
+            log.info("WeBASE验证存证: businessKey={}, proofType={}, hash={}", businessKey, proofType, hash);
 
             Map<String, Object> request = new HashMap<>();
             request.put("groupId", String.valueOf(parseGroupId(webaseGroupId)));
@@ -163,24 +168,97 @@ public class FiscoContractGateway implements BlockchainGateway {
             request.put("contractPath", "/");
             request.put("version", "");
             request.put("funcName", "verify");
-            request.put("funcParam", Arrays.asList(businessKey, hash));
+            request.put("funcParam", Arrays.asList(businessKey, proofType, hash));
             request.put("contractAbi", CONTRACT_ABI);
             request.put("useAes", false);
             request.put("useCns", false);
             request.put("cnsName", "");
             putUserIfPresent(request);
 
-            Map<String, Object> response = invokeWeBase(
-                    Arrays.asList("/trans/constantCall", "/trans/call"),
-                    request
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            String url = normalizeBaseUrl(webaseBaseUrl) + "/trans/handle";
+
+            ResponseEntity<String> rawResponse = restTemplate.postForEntity(
+                    url, new HttpEntity<>(request, headers), String.class
             );
-            boolean verified = extractBoolean(response);
+            String body = rawResponse.getBody();
+            log.info("WeBASE verify原始响应: {}", body);
+
+            if (body == null || body.isBlank()) {
+                log.warn("WeBASE verify返回空响应");
+                return false;
+            }
+
+            boolean verified = parseVerifyResult(body);
             log.info("WeBASE验证结果: {}", verified);
             return verified;
         } catch (Exception e) {
             log.error("验证失败", e);
             return false;
         }
+    }
+
+    private boolean parseVerifyResult(String body) {
+        String trimmed = body.trim();
+
+        if ("true".equalsIgnoreCase(trimmed)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(trimmed)) {
+            return false;
+        }
+
+        if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+            String unquoted = trimmed.substring(1, trimmed.length() - 1);
+            return Boolean.parseBoolean(unquoted);
+        }
+
+        if (trimmed.startsWith("[")) {
+            try {
+                List<?> list = objectMapper.readValue(trimmed, List.class);
+                if (!list.isEmpty()) {
+                    return toBoolean(list.get(0));
+                }
+            } catch (Exception e) {
+                log.warn("解析verify数组响应失败: {}", e.getMessage());
+            }
+            return false;
+        }
+
+        if (trimmed.startsWith("{")) {
+            try {
+                Map<String, Object> map = objectMapper.readValue(trimmed, Map.class);
+                Object output = map.get("output");
+                if (output != null) {
+                    return toBoolean(output);
+                }
+                Object result = map.get("result");
+                if (result != null) {
+                    return toBoolean(result);
+                }
+                Object data = map.get("data");
+                if (data != null) {
+                    return toBoolean(data);
+                }
+                for (Object value : map.values()) {
+                    if (value instanceof Boolean) {
+                        return (Boolean) value;
+                    }
+                    if (value instanceof String && ((String) value).startsWith("0x")) {
+                        return ContractAbiEncoder.decodeBoolResult((String) value);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析verify JSON响应失败: {}", e.getMessage());
+            }
+        }
+
+        if (trimmed.startsWith("0x")) {
+            return ContractAbiEncoder.decodeBoolResult(trimmed);
+        }
+
+        return false;
     }
 
     private Map<String, Object> invokeWeBase(List<String> paths, Map<String, Object> request) {

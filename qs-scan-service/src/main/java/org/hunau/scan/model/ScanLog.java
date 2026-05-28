@@ -21,4 +21,6 @@ public class ScanLog {
     private boolean crossRegionRisk;
     private boolean newDevice;
     private boolean riskDevice;
+    private String city;
+    private String province;
 }

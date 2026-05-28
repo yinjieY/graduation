@@ -60,6 +60,7 @@ const navItems = computed(() => {
  { path: '/admin/batch-review', label: '批次审核', icon: '📦' },
  { path: '/admin/qrcode', label: '二维码管理', icon: '📱' },
  { path: '/admin/feedback', label: '反馈处理', icon: '💬' },
+ { path: '/admin/rule', label: '预警规则', icon: '⚙' },
  { path: '/admin/message', label: '系统消息', icon: '📋' }
  ];
  }

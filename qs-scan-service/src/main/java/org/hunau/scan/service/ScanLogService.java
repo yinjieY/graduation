@@ -106,8 +106,12 @@ public class ScanLogService {
 
     public R<?> listByQsId(String qsId) {
         List<ScanLog> result = jdbcTemplate.query(
-                "SELECT qs_id,batch_id,company_id,scan_time,ip_masked,device_fingerprint,browser,lat,lng,is_first,location_source,distance_km,new_device,risk_device " +
-                        "FROM yx_scan_anomaly.scan_log WHERE qs_id = ? ORDER BY scan_time DESC",
+                "SELECT s.qs_id,s.batch_id,s.company_id,s.scan_time,s.ip_masked,s.device_fingerprint,s.browser," +
+                        "s.lat,s.lng,s.is_first,s.location_source,s.distance_km,s.new_device,s.risk_device," +
+                        "dp.city,dp.province " +
+                        "FROM yx_scan_anomaly.scan_log s " +
+                        "LEFT JOIN yx_geo_profile.device_profile dp ON s.device_fingerprint = dp.device_fingerprint " +
+                        "WHERE s.qs_id = ? ORDER BY s.scan_time DESC",
                 scanLogRowMapper(),
                 qsId);
         return R.ok(result);
@@ -378,6 +382,8 @@ public class ScanLogService {
             log.setFirstScan(rs.getInt("is_first") == 1);
             log.setNewDevice(rs.getInt("new_device") == 1);
             log.setRiskDevice(rs.getInt("risk_device") == 1);
+            log.setCity(rs.getString("city"));
+            log.setProvince(rs.getString("province"));
             return log;
         };
     }

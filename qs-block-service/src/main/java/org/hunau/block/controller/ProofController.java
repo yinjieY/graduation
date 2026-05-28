@@ -61,8 +61,9 @@ public class ProofController {
 
     @GetMapping("/verify")
     public R<Map<String, Object>> verify(@RequestParam String businessKey,
+                                         @RequestParam String proofType,
                                          @RequestParam String hash) {
-        Map<String, Object> data = proofService.verifyDetail(businessKey, hash);
+        Map<String, Object> data = proofService.verifyDetail(businessKey, proofType, hash);
         return R.ok(data);
     }
 
